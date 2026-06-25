@@ -1,0 +1,685 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="寝室电费">
+<title>寝室空调电费记录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",-apple-system,sans-serif;background:#f0f4f8;color:#333;min-height:100vh;min-height:100dvh;-webkit-tap-highlight-color:transparent}
+.header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:16px 20px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,0.1);position:relative}
+.header h1{font-size:20px;font-weight:600}
+.header .room-badge{font-size:12px;opacity:.85;margin-top:2px}
+.header .sync-dot{position:absolute;right:16px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%}
+.sync-dot.online{background:#10b981;box-shadow:0 0 6px #10b981}
+.sync-dot.offline{background:#f59e0b;box-shadow:0 0 6px #f59e0b}
+.container{max-width:800px;margin:12px auto;padding:0 12px;display:grid;grid-template-columns:1fr;gap:12px}
+.panel{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 8px rgba(0,0,0,0.05)}
+.panel h2{font-size:15px;margin-bottom:12px;color:#444;display:flex;align-items:center;gap:6px;border-bottom:2px solid #f0f4f8;padding-bottom:10px}
+.member-list{list-style:none;display:flex;flex-wrap:wrap;gap:8px}
+.member-list li{padding:8px 14px;border-radius:20px;display:flex;align-items:center;gap:8px;background:#f0f4f8;font-size:14px;font-weight:500}
+.member-list .del-btn{width:20px;height:20px;border-radius:50%;border:none;background:#fecaca;color:#ef4444;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
+.member-add{display:flex;gap:8px;margin-top:10px}
+.member-add input{flex:1}
+input,select,button{font-family:inherit;font-size:14px}
+input,select{padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;outline:none;transition:border .2s;background:#fff;width:100%}
+input:focus,select:focus{border-color:#667eea}
+button{border:none;border-radius:10px;cursor:pointer;font-weight:500;transition:all .2s;white-space:nowrap}
+.btn-primary{background:#667eea;color:#fff;padding:10px 18px}
+.btn-primary:hover{background:#5a6fd6}
+.btn-danger{background:#fff;color:#ef4444;border:1.5px solid #fecaca;padding:4px 10px;font-size:12px}
+.btn-danger:hover{background:#fef2f2}
+.btn-outline{background:#fff;color:#667eea;border:1.5px solid #667eea;padding:8px 14px;font-size:13px}
+.btn-outline:hover{background:#eef2ff}
+.btn-sm{padding:8px 14px;font-size:13px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.form-row .field{display:flex;flex-direction:column;gap:4px}
+.form-row .field label{font-size:12px;color:#888}
+.form-row .full{grid-column:1/-1}
+.record-list{display:flex;flex-direction:column;gap:8px}
+.record-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:#f8fafc;font-size:14px}
+.record-item .info{display:flex;flex-direction:column;gap:2px}
+.record-item .meta{font-size:12px;color:#888}
+.record-item .amount{font-weight:700;color:#667eea;font-size:16px}
+.record-item .right{text-align:right;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.tag-settled{background:#d1fae5;color:#065f46}
+.tag-unsettled{background:#fef3c7;color:#92400e}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.summary-card{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}
+.summary-card .name{font-size:14px;font-weight:600;margin-bottom:4px}
+.summary-card .total{font-size:22px;font-weight:700;color:#667eea}
+.summary-card .total-label{font-size:11px;color:#888}
+.summary-card .balance{font-size:16px;font-weight:700;margin-top:6px}
+.summary-card .balance.positive{color:#10b981}
+.summary-card .balance.negative{color:#ef4444}
+.settle-box{background:#fffbe6;border:1.5px dashed #f59e0b;border-radius:10px;padding:14px;margin-top:12px}
+.settle-box h3{font-size:14px;color:#92400e;margin-bottom:6px}
+.settle-box p{font-size:13px;color:#888;margin-bottom:4px}
+.settle-box .debt-list{list-style:none;font-size:13px}
+.settle-box .debt-list li{padding:3px 0}
+.empty{text-align:center;color:#aaa;padding:30px;font-size:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:20px;font-size:14px;z-index:1000;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:999;display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+.modal h3{font-size:17px;margin-bottom:16px}
+.modal input,.modal select{margin-bottom:12px}
+.modal .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+small{color:#888;display:block;margin-top:6px;font-size:12px}
+@media(min-width:768px){
+  .container{grid-template-columns:220px 1fr}
+  .form-row{grid-template-columns:1fr 100px 130px 80px}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏠 寝室空调电费</h1>
+  <div class="room-badge" id="roomBadge">未加入房间</div>
+  <div class="sync-dot offline" id="syncDot" title="同步状态"></div>
+</div>
+
+<div class="container">
+  <!-- 左侧：成员 -->
+  <div class="panel">
+    <h2>👥 成员</h2>
+    <ul class="member-list" id="memberList"></ul>
+    <div class="member-add">
+      <input type="text" id="memberInput" placeholder="输入姓名" maxlength="10">
+      <button class="btn-primary btn-sm" onclick="addMember()">添加</button>
+    </div>
+  </div>
+
+  <!-- 右侧：记录 -->
+  <div class="panel">
+    <h2>⚡ 充值记录</h2>
+    <div class="form-row">
+      <div class="field">
+        <label>充值人</label>
+        <select id="payerSelect"></select>
+      </div>
+      <div class="field">
+        <label>金额</label>
+        <input type="number" id="amountInput" placeholder="50" min="0.01" step="0.01">
+      </div>
+      <div class="field">
+        <label>日期</label>
+        <input type="date" id="dateInput">
+      </div>
+      <div class="field" style="justify-content:flex-end">
+        <label>&nbsp;</label>
+        <button class="btn-primary btn-sm" onclick="addRecord()">➕ 记录</button>
+      </div>
+    </div>
+    <div class="record-list" id="recordList"></div>
+  </div>
+</div>
+
+<!-- 汇总 -->
+<div style="max-width:800px;margin:0 auto 20px;padding:0 12px">
+  <div class="panel">
+    <h2>📊 结算汇总</h2>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="settle-box" id="settleBox" style="display:none"></div>
+    <div class="actions">
+      <button class="btn-outline" onclick="settleUp()">💰 结算未结记录</button>
+      <button class="btn-outline" onclick="undoSettle()">↩ 撤销最近结算</button>
+      <button class="btn-outline" onclick="exportJSON()">📥 导出JSON</button>
+      <button class="btn-outline" onclick="exportCSV()">📊 导出CSV</button>
+      <button class="btn-outline" onclick="importData()">📤 导入数据</button>
+      <button class="btn-outline" onclick="showRoomModal()">🏠 房间设置</button>
+    </div>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+  </div>
+</div>
+
+<!-- 房间弹窗 -->
+<div class="modal-overlay" id="roomModal" style="display:none">
+  <div class="modal">
+    <h3>🏠 房间设置</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:12px">输入同一个房间号，室友之间数据自动同步</p>
+    <label style="font-size:13px;color:#888">房间号（4位数字）</label>
+    <input type="text" id="roomIdInput" placeholder="如 3301" maxlength="4" pattern="[0-9]*" inputmode="numeric">
+    <small>👉 需要先配置 Firebase 才能同步（见下方说明）</small>
+    <div class="btn-row">
+      <button class="btn-outline btn-sm" onclick="hideRoomModal()">取消</button>
+      <button class="btn-primary btn-sm" onclick="joinRoom()">加入房间</button>
+      <button class="btn-danger btn-sm" onclick="leaveRoom()">退出房间</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase 配置弹窗 -->
+<div class="modal-overlay" id="configModal" style="display:none">
+  <div class="modal" style="max-height:80vh;overflow-y:auto">
+    <h3>⚙️ Firebase 配置</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:12px">填入你的 Firebase 项目配置即可启用云端同步</p>
+    <label style="font-size:12px;color:#888">apiKey</label>
+    <input type="text" id="cfgApiKey" placeholder="AIzaSy...">
+    <label style="font-size:12px;color:#888">authDomain</label>
+    <input type="text" id="cfgAuthDomain" placeholder="xxx.firebaseapp.com">
+    <label style="font-size:12px;color:#888">databaseURL</label>
+    <input type="text" id="cfgDbUrl" placeholder="https://xxx.firebaseio.com">
+    <label style="font-size:12px;color:#888">projectId</label>
+    <input type="text" id="cfgProjectId" placeholder="xxx">
+    <small style="margin-bottom:12px">
+      📖 <strong>如何获取？</strong><br>
+      1. 打开 <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a><br>
+      2. 创建项目 → 启用 Realtime Database（测试模式）<br>
+      3. 项目设置 → 添加 Web 应用 → 复制配置
+    </small>
+    <div class="btn-row">
+      <button class="btn-outline btn-sm" onclick="hideConfigModal()">取消</button>
+      <button class="btn-primary btn-sm" onclick="saveFirebaseConfig()">保存配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ========== PWA Manifest ==========
+const manifest = {
+  name: "寝室空调电费记录",
+  short_name: "寝室电费",
+  description: "寝室空调电费公平记账工具",
+  start_url: location.href,
+  display: "standalone",
+  orientation: "portrait",
+  background_color: "#f0f4f8",
+  theme_color: "#667eea",
+  icons: [{
+    src: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#667eea"/><text x="256" y="320" text-anchor="middle" font-size="280">⚡</text></svg>'),
+    sizes: "512x512", type: "image/svg+xml", purpose: "any maskable"
+  }]
+};
+const manifestBlob = new Blob([JSON.stringify(manifest)], {type:"application/json"});
+const manifestUrl = URL.createObjectURL(manifestBlob);
+const link = document.createElement("link");
+link.rel = "manifest";
+link.href = manifestUrl;
+document.head.appendChild(link);
+
+// ========== Service Worker ==========
+if ("serviceWorker" in navigator) {
+  const swCode = `
+const CACHE = "ac-fee-v1";
+const ASSETS = [self.location.href];
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  self.skipWaiting();
+});
+self.addEventListener("activate", e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener("fetch", e => {
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
+      if(resp.ok){ const clone = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
+      return resp;
+    }).catch(() => caches.match(e.request)))
+  );
+});
+`;
+  const swBlob = new Blob([swCode], {type:"application/javascript"});
+  const swUrl = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// PWA install prompt
+let deferredPrompt;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
+// ========== Firebase ==========
+let db = null;
+let roomRef = null;
+let fbOnline = false;
+
+function getFirebaseConfig() {
+  try {
+    const raw = localStorage.getItem("ac_fee_fb_config");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveFirebaseConfigLocal(cfg) {
+  localStorage.setItem("ac_fee_fb_config", JSON.stringify(cfg));
+}
+
+function initFirebase() {
+  const cfg = getFirebaseConfig();
+  if (!cfg) return;
+  // Load Firebase SDK dynamically
+  if (window.firebase) {
+    setupFirebase(cfg);
+    return;
+  }
+  const scripts = [
+    "https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js",
+    "https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"
+  ];
+  let loaded = 0;
+  scripts.forEach(src => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => { loaded++; if (loaded === scripts.length) setupFirebase(cfg); };
+    document.head.appendChild(s);
+  });
+}
+
+function setupFirebase(cfg) {
+  try {
+    firebase.initializeApp(cfg);
+    db = firebase.database();
+    // Enable offline persistence
+    db.goOnline();
+    firebase.database().ref(".info/connected").on("value", snap => {
+      fbOnline = snap.val() === true;
+      updateSyncDot();
+    });
+    // Rejoin room if previously joined
+    const roomId = localStorage.getItem("ac_fee_room");
+    if (roomId) {
+      joinRoomInternal(roomId);
+    }
+  } catch(e) {
+    console.error("Firebase init error:", e);
+  }
+}
+
+window.saveFirebaseConfig = function() {
+  const cfg = {
+    apiKey: document.getElementById("cfgApiKey").value.trim(),
+    authDomain: document.getElementById("cfgAuthDomain").value.trim(),
+    databaseURL: document.getElementById("cfgDbUrl").value.trim(),
+    projectId: document.getElementById("cfgProjectId").value.trim()
+  };
+  if (!cfg.apiKey || !cfg.databaseURL) return toast("请填写 apiKey 和 databaseURL");
+  saveFirebaseConfigLocal(cfg);
+  hideConfigModal();
+  initFirebase();
+  toast("Firebase 配置已保存，正在连接...");
+};
+
+window.showConfigModal = function() {
+  const cfg = getFirebaseConfig();
+  if (cfg) {
+    document.getElementById("cfgApiKey").value = cfg.apiKey || "";
+    document.getElementById("cfgAuthDomain").value = cfg.authDomain || "";
+    document.getElementById("cfgDbUrl").value = cfg.databaseURL || "";
+    document.getElementById("cfgProjectId").value = cfg.projectId || "";
+  }
+  document.getElementById("configModal").style.display = "flex";
+};
+
+window.hideConfigModal = function() {
+  document.getElementById("configModal").style.display = "none";
+};
+
+// ========== 数据层 ==========
+let data = { members: [], records: [], settlements: [], nextId: 1 };
+let localRoomId = null;
+
+function saveLocal() {
+  localStorage.setItem("ac_fee_data", JSON.stringify(data));
+}
+
+function loadLocal() {
+  const raw = localStorage.getItem("ac_fee_data");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      data.members = parsed.members || [];
+      data.records = parsed.records || [];
+      data.settlements = parsed.settlements || [];
+      data.nextId = parsed.nextId || 1;
+    } catch { /* ignore */ }
+  }
+}
+
+function syncToFirebase() {
+  if (!roomRef || !fbOnline) return;
+  roomRef.set({
+    members: data.members,
+    records: data.records,
+    settlements: data.settlements,
+    nextId: data.nextId,
+    updatedAt: Date.now()
+  }).catch(() => {});
+}
+
+function updateSyncDot() {
+  const dot = document.getElementById("syncDot");
+  dot.className = "sync-dot " + (fbOnline ? "online" : "offline");
+  dot.title = fbOnline ? "云端已同步" : "未连接云端（使用本地数据）";
+}
+
+// ========== 房间 ==========
+window.showRoomModal = function() {
+  if (!db) {
+    // No Firebase configured, show config instead
+    showConfigModal();
+    return;
+  }
+  document.getElementById("roomIdInput").value = localRoomId || "";
+  document.getElementById("roomModal").style.display = "flex";
+};
+
+window.hideRoomModal = function() {
+  document.getElementById("roomModal").style.display = "none";
+};
+
+window.joinRoom = function() {
+  const id = document.getElementById("roomIdInput").value.trim();
+  if (!/^\d{4}$/.test(id)) return toast("请输入4位数字房间号");
+  joinRoomInternal(id);
+  localStorage.setItem("ac_fee_room", id);
+  hideRoomModal();
+  toast(`已加入房间 ${id}`);
+};
+
+function joinRoomInternal(roomId) {
+  // Detach old listener
+  if (roomRef) roomRef.off();
+  localRoomId = roomId;
+  roomRef = db.ref("rooms/" + roomId);
+  document.getElementById("roomBadge").textContent = "房间 " + roomId;
+
+  // Listen for remote changes
+  roomRef.on("value", snap => {
+    const val = snap.val();
+    if (val && val.members) {
+      // Remote data exists, merge (remote wins for sync)
+      data.members = val.members || [];
+      data.records = val.records || [];
+      data.settlements = val.settlements || [];
+      data.nextId = val.nextId || 1;
+      saveLocal();
+      renderAll();
+    } else {
+      // No remote data yet, push local
+      syncToFirebase();
+    }
+  });
+
+  // Push local data
+  syncToFirebase();
+}
+
+window.leaveRoom = function() {
+  if (roomRef) roomRef.off();
+  roomRef = null;
+  localRoomId = null;
+  localStorage.removeItem("ac_fee_room");
+  document.getElementById("roomBadge").textContent = "未加入房间";
+  document.getElementById("syncDot").className = "sync-dot offline";
+  hideRoomModal();
+  toast("已退出房间");
+};
+
+// ========== UI 渲染 ==========
+function renderAll() {
+  renderMembers();
+  renderPayerSelect();
+  renderRecords();
+  renderSummary();
+}
+
+function renderMembers() {
+  const list = document.getElementById("memberList");
+  list.innerHTML = data.members.map((m, i) =>
+    `<li>${esc(m)}<button class="del-btn" onclick="removeMember(${i})" title="删除">×</button></li>`
+  ).join("");
+  if (data.members.length === 0) {
+    list.innerHTML = '<li style="color:#aaa;background:transparent">还未添加成员</li>';
+  }
+}
+
+function renderPayerSelect() {
+  const sel = document.getElementById("payerSelect");
+  sel.innerHTML = data.members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+}
+
+function renderRecords() {
+  const list = document.getElementById("recordList");
+  if (data.records.length === 0) {
+    list.innerHTML = '<div class="empty">📝 还没有充值记录</div>';
+    return;
+  }
+  const sorted = [...data.records].reverse();
+  list.innerHTML = sorted.map(r => {
+    const statusTag = r.settled
+      ? '<span class="tag tag-settled">已结算</span>'
+      : '<span class="tag tag-unsettled">未结算</span>';
+    return `<div class="record-item">
+      <div class="info">
+        <strong>${esc(r.payer)}</strong>
+        <span class="meta">${r.date}</span>
+      </div>
+      <div class="right">
+        <span class="amount">¥${r.amount.toFixed(2)}</span>
+        ${statusTag}
+        <button class="btn-danger" style="margin-top:4px" onclick="deleteRecord(${r.id})">删除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderSummary() {
+  const grid = document.getElementById("summaryGrid");
+  const settleBox = document.getElementById("settleBox");
+  const n = data.members.length || 1;
+
+  const unsettledTotal = data.records.filter(r => !r.settled).reduce((s, r) => s + r.amount, 0);
+  const avgUnsettled = unsettledTotal / n;
+
+  function paidBy(person) {
+    return data.records.filter(r => r.payer === person).reduce((s, r) => s + r.amount, 0);
+  }
+  function paidByUnsettled(person) {
+    return data.records.filter(r => r.payer === person && !r.settled).reduce((s, r) => s + r.amount, 0);
+  }
+
+  let html = "";
+  for (const m of data.members) {
+    const p = paidBy(m);
+    const pu = paidByUnsettled(m);
+    const bal = pu - avgUnsettled;
+    let cls = "";
+    if (bal > 0.01) cls = "positive";
+    else if (bal < -0.01) cls = "negative";
+    html += `<div class="summary-card">
+      <div class="name">${esc(m)}</div>
+      <div class="total">¥${p.toFixed(2)}</div>
+      <div class="total-label">总计充值</div>
+      <div class="balance ${cls}">${bal >= 0 ? "+" : ""}${bal.toFixed(2)}</div>
+      <div class="total-label">未结余额</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+
+  if (unsettledTotal > 0 && data.members.length > 0) {
+    const balances = data.members.map(m => ({
+      name: m,
+      balance: paidByUnsettled(m) - avgUnsettled
+    }));
+    const creditors = balances.filter(b => b.balance > 0.01).sort((a,b) => b.balance - a.balance);
+    const debtors = balances.filter(b => b.balance < -0.01).sort((a,b) => a.balance - b.balance);
+
+    let settleHtml = `<h3>💡 结算建议</h3>
+      <p>未结总额 ¥${unsettledTotal.toFixed(2)}，人均 ¥${avgUnsettled.toFixed(2)}</p>`;
+    if (creditors.length === 0 && debtors.length === 0) {
+      settleHtml += '<p style="color:#10b981">✅ 已平账！</p>';
+    } else {
+      settleHtml += '<ul class="debt-list">';
+      let ci = 0, di = 0;
+      const c = creditors.map(x => ({...x}));
+      const d = debtors.map(x => ({...x}));
+      while (ci < c.length && di < d.length) {
+        const amt = Math.min(c[ci].balance, -d[di].balance);
+        settleHtml += `<li><strong>${esc(d[di].name)}</strong> → <strong>${esc(c[ci].name)}</strong> ¥${amt.toFixed(2)}</li>`;
+        c[ci].balance -= amt;
+        d[di].balance += amt;
+        if (c[ci].balance < 0.01) ci++;
+        if (d[di].balance > -0.01) di++;
+      }
+      settleHtml += '</ul>';
+    }
+    settleBox.innerHTML = settleHtml;
+    settleBox.style.display = "block";
+  } else {
+    settleBox.style.display = "none";
+  }
+}
+
+// ========== 操作 ==========
+window.addMember = function() {
+  const input = document.getElementById("memberInput");
+  const name = input.value.trim();
+  if (!name) return toast("请输入姓名");
+  if (data.members.includes(name)) return toast("该成员已存在");
+  data.members.push(name);
+  input.value = "";
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+};
+
+window.removeMember = function(index) {
+  const name = data.members[index];
+  if (!confirm(`确定删除成员「${name}」吗？`)) return;
+  data.members.splice(index, 1);
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+};
+
+window.addRecord = function() {
+  const payer = document.getElementById("payerSelect").value;
+  const amountStr = document.getElementById("amountInput").value;
+  const dateInput = document.getElementById("dateInput").value;
+  if (!payer) return toast("请先添加成员");
+  const amount = parseFloat(amountStr);
+  if (isNaN(amount) || amount <= 0) return toast("请输入有效金额");
+  if (!dateInput) return toast("请选择日期");
+  data.records.push({ id: data.nextId++, date: dateInput, amount, payer, settled: false });
+  document.getElementById("amountInput").value = "";
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+};
+
+window.deleteRecord = function(id) {
+  if (!confirm("确定删除这条记录吗？")) return;
+  data.records = data.records.filter(r => r.id !== id);
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+};
+
+window.settleUp = function() {
+  const unsettled = data.records.filter(r => !r.settled);
+  if (unsettled.length === 0) return toast("没有未结算的记录");
+  if (data.members.length === 0) return toast("请先添加成员");
+  if (!confirm(`确定结算当前 ${unsettled.length} 条未结记录吗？`)) return;
+  const ids = unsettled.map(r => r.id);
+  data.settlements.push({ id: data.settlements.length + 1, date: new Date().toISOString().slice(0, 10), recordIds: ids });
+  data.records.forEach(r => { if (ids.includes(r.id)) r.settled = true; });
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+  toast("结算完成！");
+};
+
+window.undoSettle = function() {
+  if (data.settlements.length === 0) return toast("没有可撤销的结算");
+  const last = data.settlements[data.settlements.length - 1];
+  if (!confirm(`撤销最近结算（${last.date}，${last.recordIds.length} 条）？`)) return;
+  data.records.forEach(r => { if (last.recordIds.includes(r.id)) r.settled = false; });
+  data.settlements.pop();
+  saveLocal();
+  syncToFirebase();
+  renderAll();
+  toast("结算已撤销");
+};
+
+window.exportJSON = function() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  download(blob, "空调电费记录.json");
+  toast("JSON 已导出");
+};
+
+window.exportCSV = function() {
+  let csv = "\uFEFF日期,充值人,金额,状态\n";
+  data.records.forEach(r => { csv += `${r.date},${r.payer},${r.amount.toFixed(2)},${r.settled?"已结算":"未结算"}\n`; });
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  download(blob, "空调电费记录.csv");
+  toast("CSV 已导出");
+};
+
+window.importData = function() {
+  document.getElementById("importFile").click();
+};
+
+window.handleImport = function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (!imported.members || !imported.records) throw new Error("格式不符");
+      if (!confirm(`导入数据（${imported.members.length}人，${imported.records.length}条），覆盖当前数据？`)) return;
+      data = imported;
+      if (!data.nextId) data.nextId = data.records.length > 0 ? Math.max(...data.records.map(r=>r.id)) + 1 : 1;
+      if (!data.settlements) data.settlements = [];
+      saveLocal();
+      syncToFirebase();
+      renderAll();
+      toast("导入成功！");
+    } catch { toast("文件格式不正确"); }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+};
+
+function download(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
+}
+
+// ========== 初始化 ==========
+loadLocal();
+document.getElementById("dateInput").value = new Date().toISOString().slice(0, 10);
+renderAll();
+
+// Try to init Firebase
+initFirebase();
+
+// Expose to global
+window.showConfigModal = showConfigModal;
+</script>
+</body>
+</html>
