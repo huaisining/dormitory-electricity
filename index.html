@@ -289,6 +289,31 @@ small{color:var(--on-surface-variant);font-size:11px;display:block;margin-top:4p
   </div>
 
   <div class="card">
+    <h3>🏫 智慧安大同步</h3>
+    <div class="form-row">
+      <div class="field">
+        <label>后端地址</label>
+        <input type="text" id="backendUrl" placeholder="https://xxx.onrender.com" value="">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>学号</label>
+        <input type="text" id="stuId" placeholder="学号" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>智慧安大密码</label>
+        <input type="password" id="stuPwd" placeholder="密码">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-primary btn-sm" onclick="syncLogin()">🔐 登录</button>
+      <button class="btn-tonal btn-sm" onclick="syncQuery()" id="btnSyncQuery" disabled>🔄 查询电费</button>
+    </div>
+    <small id="syncResult" style="margin-top:8px"></small>
+  </div>
+
+  <div class="card">
     <h3>☁️ 云端同步</h3>
     <div style="display:flex;flex-wrap:wrap;gap:8px">
       <button class="btn-tonal btn-sm" onclick="showRoomModal()">🏠 房间设置</button>
@@ -613,7 +638,80 @@ function toast(msg){const el=document.getElementById("toast");el.textContent=msg
 loadLocal();
 document.getElementById("dateInput").value=new Date().toISOString().slice(0,10);
 document.getElementById("priceInput").value=data.pricePerKwh||0.56;
-renderAll();initFirebase();
+renderAll();initFirebase();loadSyncSettings();
+
+// ========== Auto Sync ==========
+let syncToken = localStorage.getItem('ac_sync_token') || '';
+let syncBackend = localStorage.getItem('ac_sync_backend') || '';
+
+function loadSyncSettings() {
+  document.getElementById('backendUrl').value = syncBackend;
+  if (syncToken) {
+    document.getElementById('btnSyncQuery').disabled = false;
+    document.getElementById('syncResult').textContent = '已登录，可查询电费';
+  }
+}
+
+window.syncLogin = async function() {
+  const backend = document.getElementById('backendUrl').value.trim();
+  const stuId = document.getElementById('stuId').value.trim();
+  const stuPwd = document.getElementById('stuPwd').value.trim();
+  if (!backend || !stuId || !stuPwd) return toast('请填写完整');
+  syncBackend = backend;
+  localStorage.setItem('ac_sync_backend', backend);
+  document.getElementById('syncResult').textContent = '登录中...';
+  try {
+    const r = await fetch(backend + '/api/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: stuId, password: stuPwd})
+    });
+    const j = await r.json();
+    if (j.error) { document.getElementById('syncResult').textContent = '❌ ' + j.error; return; }
+    syncToken = j.token;
+    localStorage.setItem('ac_sync_token', syncToken);
+    document.getElementById('btnSyncQuery').disabled = false;
+    document.getElementById('syncResult').textContent = '✅ 已登录: ' + j.username;
+    document.getElementById('stuPwd').value = '';
+    toast('登录成功');
+  } catch(e) {
+    document.getElementById('syncResult').textContent = '❌ 连接失败: ' + e.message;
+  }
+};
+
+window.syncQuery = async function() {
+  if (!syncToken || !syncBackend) return toast('请先登录');
+  document.getElementById('syncResult').textContent = '查询中...';
+  try {
+    const r = await fetch(syncBackend + '/api/electricity', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token: syncToken, feeitemid: 408})
+    });
+    const j = await r.json();
+    if (j.error) { document.getElementById('syncResult').textContent = '❌ ' + j.error; return; }
+
+    let msg = 🏠  <br>⚡ 剩余:  度;
+
+    if (j.new_recharge) {
+      const added = j.new_recharge;
+      msg += <br>🆕 检测到充值: + 度;
+      msg += <br>前次:  → 当前: ;
+      if (confirm(检测到电费增加  度，是否自动记录？)) {
+        // Auto-create a record
+        const payer = data.members[0] || '未知';
+        const amount = (added.added_kwh * data.pricePerKwh).toFixed(2);
+        data.records.push({
+          id: data.nextId++, date: new Date().toISOString().slice(0,10),
+          amount: parseFloat(amount), payer: payer, settled: false
+        });
+        saveLocal(); syncToFirebase(); renderAll();
+        msg += <br>✅ 已自动记录: ¥ ();
+      }
+    }
+    document.getElementById('syncResult').innerHTML = msg;
+  } catch(e) {
+    document.getElementById('syncResult').textContent = '❌ ' + e.message;
+  }
+};
 
 // Expose
 window.showConfigModal=showConfigModal;
