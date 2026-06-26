@@ -1,11 +1,9 @@
 ﻿{
-  "functions": {
-    "api/index.py": {
-      "memory": 512,
-      "maxDuration": 30
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "api/index" },
+    { "src": "/(.*)", "dest": "api/index" }
   ]
 }
