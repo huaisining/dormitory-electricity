@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """"AHU CAS DES encryption - EXACT Python port of com.yourname.ahu_plus.util.DES.kt
 which itself is a port of https://one.ahu.edu.cn/cas/comm/js/des.js
 

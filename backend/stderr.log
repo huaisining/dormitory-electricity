@@ -1,0 +1,32 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.103:5000
+Press CTRL+C to quit
+127.0.0.1 - - [26/Jun/2026 13:58:58] "OPTIONS /api/login HTTP/1.1" 200 -
+[DEBUG] After Step 3 cookies: ['Language', 'JSESSIONID', 'CASTGC']
+[DEBUG] CASTGC present: True
+[2026-06-26 13:59:00,103] ERROR in app: Exception on /api/login [POST]
+Traceback (most recent call last):
+  File "D:\python\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\flask_cors\extension.py", line 206, in wrapped_function
+    return cors_after_request(app_any.make_response(f(*args, **kwargs)))
+                                                    ^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\document\寝室电费\backend\app.py", line 330, in login
+    ycard_result = ycard_auth(result["cookies"])
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\document\寝室电费\backend\app.py", line 118, in ycard_auth
+    print(f"[DEBUG] ycard_auth cookies keys: {list(cookies.keys())}")
+OSError: [Errno 22] Invalid argument
+127.0.0.1 - - [26/Jun/2026 13:59:00] "POST /api/login HTTP/1.1" 500 -

@@ -1,0 +1,25 @@
+@echo off
+set GIT=D:\document\MinGit\cmd\git.exe
+cd /d D:\document\????
+
+echo ========================================
+echo  ?????? - ??? Gitee
+echo ========================================
+echo.
+
+echo [1/2] ??????...
+"%GIT%" -c "safe.directory=D:/document/????" remote add origin https://gitee.com/jiang-zhengyu666/????.git 2>nul
+echo [2/2] ???????????Gitee???...
+"%GIT%" -c "safe.directory=D:/document/????" push -u origin master
+
+echo.
+echo ========================================
+echo  ?????
+echo.
+echo  ????
+echo  1. ?? https://gitee.com/jiang-zhengyu666/????
+echo  2. ? "??" -> "Gitee Pages"
+echo  3. ????? master -> ?"??"
+echo  4. ?? https://jiang-zhengyu666.gitee.io/????
+echo ========================================
+pause

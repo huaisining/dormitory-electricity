@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Login Test</title></head>
+<body>
+<h2>Test CAS Login</h2>
+<p>Backend: <input id="url" value="http://localhost:5000" size="40"></p>
+<p>Student ID: <input id="sid"></p>
+<p>Password: <input id="pwd" type="password"></p>
+<button id="btn">Login</button>
+<pre id="result"></pre>
+<script>
+document.getElementById('btn').addEventListener('click', async function() {
+  var url = document.getElementById('url').value;
+  var sid = document.getElementById('sid').value;
+  var pwd = document.getElementById('pwd').value;
+  var res = document.getElementById('result');
+  res.textContent = 'Logging in...';
+  try {
+    var r = await fetch(url + '/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: sid, password: pwd})
+    });
+    var j = await r.json();
+    res.textContent = JSON.stringify(j, null, 2);
+  } catch(e) {
+    res.textContent = 'ERROR: ' + e.message;
+  }
+});
+</script>
+</body></html>

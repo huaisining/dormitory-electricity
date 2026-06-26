@@ -1,0 +1,61 @@
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.103:5000
+Press CTRL+C to quit
+127.0.0.1 - - [26/Jun/2026 15:59:28] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 15:59:36] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:04] "OPTIONS /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:05] "POST /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:05] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:06] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:06] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:07] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:07] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:08] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:08] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:09] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:16] "OPTIONS /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:08:17] "POST /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:23:38] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:31] "OPTIONS /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:32] "POST /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:32] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:32] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:32] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:33] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:33] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:33] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:33] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:34] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:35] "OPTIONS /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:24:36] "POST /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:38] "OPTIONS /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:39] "POST /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:39] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:39] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:39] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:40] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:40] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:40] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:41] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:41] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:58] "OPTIONS /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:25:59] "POST /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:23] "OPTIONS /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:25] "POST /api/login HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:25] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:25] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:25] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:26] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:26] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:26] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:26] "OPTIONS /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:27] "POST /api/feeitem/select HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:27] "OPTIONS /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:28] "POST /api/electricity HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:30] "OPTIONS /api/bills/electricity HTTP/1.1" 404 -
+127.0.0.1 - - [26/Jun/2026 19:27:32] "OPTIONS /api/bills/electricity HTTP/1.1" 404 -
+127.0.0.1 - - [26/Jun/2026 19:27:45] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [26/Jun/2026 19:27:53] "POST /api/login HTTP/1.1" 401 -
+127.0.0.1 - - [26/Jun/2026 19:28:00] "POST /api/bills/electricity HTTP/1.1" 404 -

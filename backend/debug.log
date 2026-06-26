@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\姜佂宇\AppData\Local\Temp\start_server.py", line 5, in <module>
+    exec(open('app.py', encoding='utf-8').read())
+  File "<string>", line 1
+    ﻿# -*- coding: utf-8 -*-
+    ^
+SyntaxError: invalid non-printable character U+FEFF

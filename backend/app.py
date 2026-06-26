@@ -1,4 +1,4 @@
-﻿import os, re, json, hashlib, time, sqlite3
+import os, re, json, hashlib, time, sqlite3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests, urllib3

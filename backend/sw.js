@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'dorm-elect-v99';
+const CACHE_NAME = 'dorm-elect-v99';
 const ASSETS = [
   '/',
   '/manifest.json',
