@@ -59,7 +59,7 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 </style>
 </head>
 <body>
-<header><h1>⚡ 寝室电费</h1><span style="font-size:11px;opacity:.8" id="roomBadge"></span><span style="font-size:11px;opacity:.6" id="userBadge"></span><div class="sync-dot offline" id="syncDot"></div></header>
+<header><h1>⚡ 寝室电费 v11</h1><span style="font-size:11px;opacity:.8" id="roomBadge"></span><span style="font-size:11px;opacity:.6" id="userBadge"></span><div class="sync-dot offline" id="syncDot"></div></header>
 <nav><button class="active" onclick="switchPage('records',this)">记录</button><button onclick="switchPage('sync',this)">同步</button><button onclick="switchPage('settings',this)">设置</button></nav>
 <div class="page active" id="page-records">
 <div class="stats"><div class="stat-card"><div class="label">剩余电量</div><div class="value" id="statKwh">--</div><div class="sub">度</div></div><div class="stat-card"><div class="label">人均待结算</div><div class="value" id="statAvg">--</div><div class="sub" id="statAvgDetail"></div></div></div>
@@ -68,7 +68,7 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 <div class="card" id="settlementSuggestion" style="display:none"><h3>结算建议</h3><div id="settlementContent"></div></div>
 </div>
 <div class="page" id="page-sync">
-<div class="card"><h3>智慧安大登录</h3><input type="text" id="stuId" placeholder="学号"><input type="password" id="stuPwd" placeholder="密码"><input type="text" id="backendUrl" placeholder="后端地址"><button class="btn btn-primary btn-block" onclick="syncLogin()">登录</button></div>
+<div class="card"><h3>智慧安大登录</h3><input type="text" id="stuId" placeholder="学号"><input type="password" id="stuPwd" placeholder="密码"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);margin-bottom:8px"><input type="checkbox" id="rememberPwd" style="width:auto;margin:0"> 记住密码，下次自动登录</label><input type="text" id="backendUrl" placeholder="后端地址"><button class="btn btn-primary btn-block" onclick="syncLogin()">登录</button></div>
 <div class="card" id="roomSelectCard"><h3>加入房间（首次使用）</h3><select id="syncCampus" onchange="loadBuildings()"><option>先登录</option></select><select id="syncBuilding" onchange="loadFloors()"><option>先选校区</option></select><div class="form-row"><select id="syncFloor" onchange="loadRooms()"><option>先选楼栋</option></select><select id="syncRoom" onchange="onRoomSelected()"><option>先选楼层</option></select></div><button class="btn btn-primary btn-block" id="btnJoinRoom" disabled onclick="joinRoom()">加入此房间</button></div>
 <div class="card" id="roomQuickCard" style="display:none"><h3>我的房间</h3><div id="quickRoomInfo" style="font-size:14px;font-weight:500;margin-bottom:8px"></div><button class="btn btn-primary btn-block" id="btnQuickQuery" onclick="autoQueryElec()">⚡ 查询电费</button><button class="btn btn-outline btn-block" style="margin-top:6px" onclick="leaveRoom()">更换房间</button></div>
 <div class="card"><h3>校园卡电费提取</h3><p style="font-size:12px;color:var(--sub);margin-bottom:8px">从校园卡流水自动识别电费记录</p><button class="btn btn-primary btn-block" id="btnFetchBills" disabled onclick="fetchElectricityBills()">扫描校园卡流水</button><button class="btn btn-outline btn-block" style="margin-top:6px;font-size:12px" id="btnBillDebug" disabled onclick="debugBills()">调试：查看原始流水</button><div class="sync-status" id="billResult"></div><div id="billList"></div></div>
@@ -106,12 +106,22 @@ function renderStats(){document.getElementById("statKwh").textContent=lastKwh!=n
 function renderAll(){renderPayerChips();renderRecords();renderStats()}
 
 // ==== Sync / Login ====
+function tryAutoLogin(){
+  var su=localStorage.getItem("ac_saved_user"),sp=localStorage.getItem("ac_saved_pwd");
+  if(!su||!sp)return;
+  document.getElementById("stuId").value=su;
+  document.getElementById("stuPwd").value=atob(sp);
+  document.getElementById("rememberPwd").checked=true;
+  document.getElementById("syncResult").textContent="自动登录中...";
+  syncLogin();
+}
 function syncLogin(){var b=document.getElementById("backendUrl").value.trim();var u=document.getElementById("stuId").value.trim(),p=document.getElementById("stuPwd").value.trim();var r=document.getElementById("syncResult");if(!u||!p){r.textContent="请输入学号和密码";return}r.textContent="登录中...";syncBackend=b;localStorage.setItem("ac_backend",b);
 fetch(b+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:p})})
 .then(function(x){return x.json()}).then(function(j){
 if(j.error){r.textContent="ERROR: "+j.error;return}
 syncToken=j.token;myStudentId=j.student_id||u;myName=myStudentId;
 localStorage.setItem("ac_sync_token",syncToken);
+if(document.getElementById("rememberPwd").checked){localStorage.setItem("ac_saved_user",stuId);localStorage.setItem("ac_saved_pwd",btoa(stuPwd))}else{localStorage.removeItem("ac_saved_user");localStorage.removeItem("ac_saved_pwd")}
 document.getElementById("syncDot").className="sync-dot online";
 document.getElementById("stuPwd").value="";
 document.getElementById("btnBillDebug").disabled=false;
@@ -146,6 +156,7 @@ document.getElementById("quickRoomInfo").textContent="🏠 "+buildingRoom+" | "+
 document.getElementById("btnFetchBills").disabled=false;
 document.getElementById("syncResult").textContent="OK "+myName+" 已加入 "+buildingRoom;
 loadRecords();loadRoomInfo();renderAll();
+setTimeout(tryAutoLogin, 500);
 }
 
 function leaveRoom(){
@@ -158,6 +169,7 @@ document.getElementById("roomQuickCard").style.display="none";
 document.getElementById("btnFetchBills").disabled=true;
 document.getElementById("syncResult").textContent="已退出，请重新登录";
 renderAll();
+setTimeout(tryAutoLogin, 500);
 }
 
 function autoQueryElec(){
@@ -179,6 +191,7 @@ roomMembers=j.members||[];
 document.getElementById("roomInfo").textContent=(j.room||{}).building_name+" "+(j.room||{}).room_name+" | "+roomMembers.length+"人";
 document.getElementById("memberList").innerHTML=roomMembers.map(function(m){return '<div>'+esc(m.name)+' ('+esc(m.student_id)+')</div>'}).join("");
 renderAll();
+setTimeout(tryAutoLogin, 500);
 });
 }
 
@@ -212,6 +225,7 @@ document.getElementById("backendUrl").value=syncBackend;
 document.getElementById("backendUrl").value=syncBackend;
 lastKwh=parseFloat(localStorage.getItem("ac_last_kwh"))||null;
 renderAll();
+setTimeout(tryAutoLogin, 500);
 </script>
 </body>
 </html>
