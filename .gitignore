@@ -1,0 +1,6 @@
+﻿__pycache__/
+*.pyc
+dorm.db
+*.db-journal
+*.db-wal
+des_ahu.py
