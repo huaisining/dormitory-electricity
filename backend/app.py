@@ -69,6 +69,30 @@ def init_db():
 
 init_db()
 
+try:
+    _db = get_db()
+    _db.execute("ALTER TABLE rooms ADD COLUMN lighting_building TEXT DEFAULT ''")
+    _db.commit()
+except:
+    pass
+try:
+    _db = get_db()
+    _db.execute("ALTER TABLE rooms ADD COLUMN lighting_floor TEXT DEFAULT ''")
+    _db.commit()
+except:
+    pass
+try:
+    _db = get_db()
+    _db.execute("ALTER TABLE rooms ADD COLUMN lighting_room TEXT DEFAULT ''")
+    _db.commit()
+except:
+    pass
+_db = get_db()
+_db.execute("UPDATE rooms SET lighting_building = building_code || '&' || replace(building_name, '空调', '照明') WHERE lighting_building = '' AND building_name LIKE '%空调%'")
+_db.execute("UPDATE rooms SET lighting_building = building_code || '&' || replace(building_name, '照明', '空调') WHERE lighting_building = '' AND building_name LIKE '%照明%'")
+_db.commit()
+_db.close()
+
 # ====== Auth ======
 def full_login(username, password):
     # ponytail: delegates raw CAS auth to shared.auth, appends session fields here
@@ -112,6 +136,49 @@ def login():
     return jsonify({"success": True, "token": token, "student_id": u})
 
 @app.route("/api/room/join", methods=["POST"])
+def join_room():
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS:
+        return jsonify({"error": "session expired"}), 401
+    sid = SESSIONS[token]["student_id"]
+    name = d.get("name", sid)
+    campus = d.get("campus", "")
+    building = d.get("building", "")
+    floor = d.get("floor", "")
+    room = d.get("room", "")
+    room_name = d.get("roomName", "")
+    if not campus or not building or not floor or not room:
+        return jsonify({"error": "need campus/building/floor/room"}), 400
+    db = get_db()
+    building_parts = building.split("&", 1)
+    building_code = building_parts[0]
+    building_name = building_parts[1] if len(building_parts) > 1 else building_code
+    room_parts = room.split("&", 1)
+    room_code = room_parts[0]
+    room_name_final = room_parts[1] if len(room_parts) > 1 else room_name
+    row = db.execute(
+        "SELECT id FROM rooms WHERE campus=? AND building_code=? AND floor=? AND room_code=?",
+        (campus, building_code, floor, room_code)
+    ).fetchone()
+    if row:
+        room_id = row["id"]
+    else:
+        cur = db.execute(
+            "INSERT INTO rooms (campus, building_code, building_name, floor, room_code, room_name) VALUES (?,?,?,?,?,?)",
+            (campus, building_code, building_name, floor, room_code, room_name_final)
+        )
+        room_id = cur.lastrowid
+    try:
+        db.execute("INSERT INTO members (room_id, student_id, name) VALUES (?,?,?)", (room_id, sid, name))
+    except:
+        pass
+    db.commit()
+    SESSIONS[token]["room_id"] = room_id
+    SESSIONS[token]["name"] = name
+    members = [dict(r) for r in db.execute("SELECT student_id, name FROM members WHERE room_id=?", (room_id,)).fetchall()]
+    db.close()
+    return jsonify({"success": True, "room_id": room_id, "room_name": room_name_final, "members": members})
 
 @app.route("/api/room/my", methods=["POST"])
 def my_room():
@@ -134,60 +201,11 @@ def my_room():
         members = [dict(r) for r in db.execute("SELECT student_id, name FROM members WHERE room_id=?", (room_id,)).fetchall()]
         db.close()
         return jsonify({"success": True, "has_room": True, "room_id": room_id, "room_name": row["room_name"],
-            "building_name": row["building_name"], "members": members})
+            "building_name": row["building_name"], "campus": row["campus"], "members": members})
     db.close()
     return jsonify({"success": True, "has_room": False})
 
-def room_join():
-    """Attach current session to a room (after selecting room in sync page)."""
-    d = request.get_json() or {}
-    token = d.get("token", "")
-    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
 
-    campus = d.get("campus", "")
-    building_code, building_name = "", ""
-    if "&" in d.get("building", ""):
-        parts = d["building"].split("&", 1)
-        building_code, building_name = parts[0], parts[1]
-    floor = d.get("floor", "")
-    room_code = d.get("room", "")
-    room_name = d.get("roomName", "")
-    my_name = d.get("name", SESSIONS[token]["student_id"])
-
-    if not campus or not building_code or not floor or not room_code:
-        return jsonify({"error": "missing room info"}), 400
-
-    db = get_db()
-    # Find or create room
-    row = db.execute(
-        "SELECT id FROM rooms WHERE campus=? AND building_code=? AND floor=? AND room_code=?",
-        (campus, building_code, floor, room_code)
-    ).fetchone()
-
-    if row:
-        room_id = row["id"]
-    else:
-        cur = db.execute(
-            "INSERT INTO rooms (campus, building_code, building_name, floor, room_code, room_name) VALUES (?,?,?,?,?,?)",
-            (campus, building_code, building_name, floor, room_code, room_name)
-        )
-        room_id = cur.lastrowid
-
-    # Add member
-    sid = SESSIONS[token]["student_id"]
-    db.execute(
-        "INSERT OR REPLACE INTO members (room_id, student_id, name) VALUES (?,?,?)",
-        (room_id, sid, my_name)
-    )
-    db.commit()
-
-    SESSIONS[token]["room_id"] = room_id
-    SESSIONS[token]["name"] = my_name
-
-    # Get all members
-    members = [dict(r) for r in db.execute("SELECT student_id, name FROM members WHERE room_id=?", (room_id,)).fetchall()]
-    db.close()
-    return jsonify({"success": True, "room_id": room_id, "room_name": room_name, "members": members})
 
 @app.route("/api/room/info", methods=["POST"])
 def room_info():
@@ -331,6 +349,33 @@ def api_select():
     })
 
 @app.route("/api/electricity", methods=["POST"])
+def api_elec():
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
+    jwt = SESSIONS[token]["jwt"]
+    feeitemid = str(d.get("feeitemid", "488"))
+    level = str(d.get("level", "4"))
+    campus = d.get("campus", "")
+    building = d.get("building", "")
+    floor = d.get("floor", "")
+    room = d.get("room", "")
+    form = {"feeitemid": feeitemid, "type": "IEC", "level": level,
+            "building": building, "floor": floor, "room": room}
+    if campus: form["campus"] = campus
+    result = api_call(jwt, form)
+    if "_err" in result: return jsonify({"error": result.get("_err", "")}), 500
+    mp = result.get("map") or {}
+    sd = mp.get("showData") or {}
+    info = sd.get("信息", "")
+    rd = mp.get("data") or {}
+    kwh = parse_kwh(info)
+    if kwh is None and isinstance(sd, dict):
+        for v in sd.values():
+            kwh = parse_kwh(str(v))
+            if kwh is not None: break
+    return jsonify({"success": True, "kwh": kwh, "info": info,
+        "building": rd.get("buildingName", ""), "room": rd.get("roomName", "")})
 
 @app.route("/api/electricity/auto", methods=["POST"])
 def api_elec_auto():
@@ -347,7 +392,6 @@ def api_elec_auto():
 
     feeitemid = "488"
     level = "4"
-    # Reconstruct code&name format from stored values + names
     building_full = room["building_code"]
     if room["building_name"] and "&" not in building_full:
         building_full = building_full + "&" + room["building_name"]
@@ -357,31 +401,71 @@ def api_elec_auto():
     room_full = room["room_code"]
     if room["room_name"] and "&" not in room_full:
         room_full = room_full + "&" + room["room_name"]
-    form = {"feeitemid": feeitemid, "type": "IEC", "level": level,
-            "building": building_full, "floor": floor_full, "room": room_full}
-    if room["campus"]: form["campus"] = room["campus"]
 
-    result = api_call(jwt, form)
-    if "_err" in result: return jsonify({"error": "elec API failed", "detail": result.get("_err",""), "raw": str(result)[:500], "sent_form": {"feeitemid":feeitemid,"building":building_full,"floor":floor_full,"room":room_full,"campus":room.get("campus","")}}), 500
+    def query_one_with_room(bld, flr, rm, label):
+        form = {"feeitemid": feeitemid, "type": "IEC", "level": level,
+                "building": bld, "floor": flr, "room": rm}
+        if room["campus"]: form["campus"] = room["campus"]
+        result = api_call(jwt, form)
+        if "_err" in result:
+            return {"label": label, "kwh": None, "error": result.get("_err", "")}
+        mp = result.get("map") or {}
+        sd = mp.get("showData") or {}
+        info = sd.get("信息", "")
+        rd = mp.get("data") or {}
+        kwh = parse_kwh(info)
+        if kwh is None and isinstance(sd, dict):
+            for v in sd.values():
+                kwh = parse_kwh(str(v))
+                if kwh is not None: break
+        return {"label": label, "kwh": kwh, "building": rd.get("buildingName", ""),
+                "room": rd.get("roomName", ""), "info": info}
 
-    mp = result.get("map") or {}
-    sd = mp.get("showData") or {}
-    info = sd.get("信息", "")
-    tip = str(mp.get("tipinfo", "") or "")
-    rd = mp.get("data") or {}
+    def query_one(bld, label):
+        form = {"feeitemid": feeitemid, "type": "IEC", "level": level,
+                "building": bld, "floor": floor_full, "room": room_full}
+        if room["campus"]: form["campus"] = room["campus"]
+        result = api_call(jwt, form)
+        if "_err" in result:
+            return {"label": label, "kwh": None, "error": result.get("_err", "")}
+        mp = result.get("map") or {}
+        sd = mp.get("showData") or {}
+        info = sd.get("信息", "")
+        rd = mp.get("data") or {}
+        kwh = parse_kwh(info)
+        if kwh is None and isinstance(sd, dict):
+            for v in sd.values():
+                kwh = parse_kwh(str(v))
+                if kwh is not None: break
+        return {"label": label, "kwh": kwh, "building": rd.get("buildingName", ""),
+                "room": rd.get("roomName", ""), "info": info}
 
-    kwh = parse_kwh(info) or parse_kwh(tip)
-    if kwh is None and isinstance(sd, dict):
-        for v in sd.values():
-            kwh = parse_kwh(str(v))
-            if kwh is not None: break
+    # Query AC meter separately
+    ac = query_one(building_full, "空调")
+    ac["label"] = "空调"
+
+    # Query lighting meter separately
+    l_bld = room["lighting_building"]
+    l_flr = room["lighting_floor"]
+    l_rm = room["lighting_room"]
+    lighting = None
+    if l_bld and l_flr and l_rm:
+        lighting = query_one_with_room(l_bld, l_flr, l_rm, "照明")
+    else:
+        lighting = {"label": "照明", "kwh": None, "info": "未设置照明房间"}
+
+    l_kwh = lighting.get("kwh") if lighting else None
+    ac_kwh = ac.get("kwh")
+    total = ac_kwh if ac_kwh is not None else None
+    if ac_kwh is not None and l_kwh is not None:
+        total = round(ac_kwh + l_kwh, 2)
 
     return jsonify({
-        "success": True, "feeitemid": feeitemid,
-        "building": rd.get("buildingName", ""),
-        "room": rd.get("roomName", ""),
-        "remaining_kwh": kwh,
-        "info_text": info
+        "success": True,
+        "ac": ac,
+        "lighting": lighting,
+        "total_kwh": total,
+        "note": "" if (l_bld and l_flr and l_rm) else "请设置照明房间"
     })
 
 def api_elec():
@@ -499,6 +583,28 @@ def api_bills_electricity():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/room/lighting", methods=["POST"])
+def room_lighting():
+    """Save lighting building/floor/room for current room."""
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    rid = require_room(token)
+    if rid is None: return jsonify({"error": "not joined room"}), 400
+
+    lb = d.get("building", "")
+    lf = d.get("floor", "")
+    lr = d.get("room", "")
+    if not lb or not lf or not lr:
+        return jsonify({"error": "need building, floor, room"}), 400
+
+    db = get_db()
+    db.execute("UPDATE rooms SET lighting_building=?, lighting_floor=?, lighting_room=? WHERE id=?",
+               (lb, lf, lr, rid))
+    db.commit()
+    db.close()
+    return jsonify({"success": True})
 
 @app.route("/api/bills/debug", methods=["POST"])
 def api_bills_debug():

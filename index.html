@@ -21,7 +21,7 @@ nav button.active{color:var(--primary);border-bottom-color:var(--primary);font-w
 .page.active{display:block}
 .card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .card h3{font-size:13px;color:var(--sub);margin-bottom:10px;font-weight:500}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.stat-card .label{font-size:10px}.stat-card .value{font-size:18px}
 .stat-card{background:var(--primary-light);border-radius:var(--radius);padding:12px;text-align:center}
 .stat-card .label{font-size:11px;color:var(--primary)}
 .stat-card .value{font-size:20px;font-weight:700;color:var(--primary);margin:2px 0}
@@ -62,7 +62,7 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 <header><h1>⚡ 寝室电费 v11</h1><span style="font-size:11px;opacity:.8" id="roomBadge"></span><span style="font-size:11px;opacity:.6" id="userBadge"></span><div class="sync-dot offline" id="syncDot"></div></header>
 <nav><button class="active" onclick="switchPage('records',this)">记录</button><button onclick="switchPage('sync',this)">同步</button><button onclick="switchPage('settings',this)">设置</button></nav>
 <div class="page active" id="page-records">
-<div class="stats"><div class="stat-card"><div class="label">剩余电量</div><div class="value" id="statKwh">--</div><div class="sub">度</div></div><div class="stat-card"><div class="label">人均待结算</div><div class="value" id="statAvg">--</div><div class="sub" id="statAvgDetail"></div></div></div>
+<div class="stats"><div class="stat-card"><div class="label">空调</div><div class="value" id="statAc">--</div><div class="sub">度</div></div><div class="stat-card"><div class="label">照明</div><div class="value" id="statLight">--</div><div class="sub">度</div></div><div class="stat-card"><div class="label">人均待结算</div><div class="value" id="statAvg">--</div><div class="sub" id="statAvgDetail"></div></div></div></div></div></div></div>
 <div class="card" id="elecBillCard" style="display:none"><h3>电费流水 <span id="elecBillCount" style="font-size:12px;color:var(--sub);font-weight:400"></span></h3><div id="elecBillList" style="max-height:300px;overflow-y:auto"></div></div>
 <div class="card"><h3>添加充值记录</h3><div class="form-row"><input type="date" id="dateInput"><input type="number" id="amountInput" placeholder="金额(元)" step="0.01" min="0"></div><div id="payerChips" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:2px"></div><button class="btn btn-primary btn-block" onclick="addRecord()">添加记录</button></div>
 <div class="card"><h3>充值记录 <span id="settleBox" style="font-size:12px;color:var(--sub)"></span></h3><div id="recordList"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline" style="flex:1" onclick="settleAll()">结算全部</button><button class="btn btn-outline" style="flex:1" onclick="undoSettle()">撤销结算</button></div></div>
@@ -72,6 +72,7 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 <div class="card"><h3>智慧安大登录</h3><input type="text" id="stuId" placeholder="学号"><input type="password" id="stuPwd" placeholder="密码"><label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);margin-bottom:8px"><input type="checkbox" id="rememberPwd" style="width:auto;margin:0"> 记住密码，下次自动登录</label><input type="text" id="backendUrl" placeholder="后端地址"><button class="btn btn-primary btn-block" onclick="syncLogin()">登录</button></div>
 <div class="card" id="roomSelectCard"><h3>加入房间（首次使用）</h3><select id="syncCampus" onchange="loadBuildings()"><option>先登录</option></select><select id="syncBuilding" onchange="loadFloors()"><option>先选校区</option></select><div class="form-row"><select id="syncFloor" onchange="loadRooms()"><option>先选楼栋</option></select><select id="syncRoom" onchange="onRoomSelected()"><option>先选楼层</option></select></div><button class="btn btn-primary btn-block" id="btnJoinRoom" disabled onclick="joinRoom()">加入此房间</button></div>
 <div class="card" id="roomQuickCard" style="display:none"><h3>我的房间</h3><div id="quickRoomInfo" style="font-size:14px;font-weight:500;margin-bottom:8px"></div><button class="btn btn-primary btn-block" id="btnQuickQuery" onclick="autoQueryElec()">⚡ 查询电费</button><button class="btn btn-outline btn-block" style="margin-top:6px" onclick="leaveRoom()">更换房间</button></div>
+<div class="card" id="lightingRoomCard" style="display:none"><h3>照明电费房间</h3><select id="lightCampus" onchange="loadBuildingsLight()"><option>先登录</option></select><select id="lightBuilding" onchange="loadFloorsLight()"><option>先选校区</option></select><div class="form-row"><select id="lightFloor" onchange="loadRoomsLight()"><option>先选楼栋</option></select><select id="lightRoom" onchange="onLightRoomSelected()"><option>先选楼层</option></select></div><button class="btn btn-primary btn-block" id="btnSaveLighting" disabled onclick="saveLightingRoom()">保存照明房间</button><div id="lightRoomStatus" style="font-size:11px;color:var(--sub);margin-top:4px"></div></div>
 <div class="card"><h3>校园卡电费提取</h3><p style="font-size:12px;color:var(--sub);margin-bottom:8px">从校园卡流水自动识别电费记录</p><button class="btn btn-primary btn-block" id="btnFetchBills" disabled onclick="fetchElectricityBills()">扫描校园卡流水</button><button class="btn btn-outline btn-block" style="margin-top:6px;font-size:12px" id="btnBillDebug" disabled onclick="debugBills()">调试：查看原始流水</button><div class="sync-status" id="billResult"></div><div id="billList"></div></div>
 <div class="sync-status" id="syncResult" style="padding:6px 0"></div>
 </div>
@@ -86,9 +87,9 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 var syncToken="",syncBackend=window.location.origin||localStorage.getItem("ac_backend")||"http://localhost:5001";
 var records=[],roomId=null,roomMembers=[],myStudentId="",myName="",selectedPayer="";
 var pricePerKwh=parseFloat(localStorage.getItem("ac_price")||"0.56");
-var lastKwh=null,lastRoomInfo="";
-function api(u,d){return fetch(syncBackend+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})}).then(function(r){var ct=r.headers.get("content-type")||"";if(ct.indexOf("json")===-1)throw new Error("Server error: "+r.status);return r.json()})}
-function switchPage(n,b){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("active")});document.getElementById("page-"+n).classList.add("active");if(b)b.classList.add("active");if(n==="records"){loadRecords();if(syncToken&&roomId){autoQueryElec();fetchElectricityBills()}}if(n==="settings")loadRoomInfo()}
+var lastKwh=null,lastRoomInfo="",roomCampus="";
+function api(u,d){return fetch(syncBackend+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})}).then(function(r){var ct=r.headers.get("content-type")||"";if(r.status===401){switchPage("sync");document.getElementById("syncResult").textContent="会话过期，请重新登录";syncToken="";return Promise.reject(new Error("session expired"))}if(ct.indexOf("json")===-1)throw new Error("Server error: "+r.status);return r.json()})}
+function switchPage(n,b){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("active")});document.getElementById("page-"+n).classList.add("active");if(b)b.classList.add("active");if(n==="records"){if(!syncToken){tryAutoLogin()}else{loadRecords();if(syncToken&&roomId){autoQueryElec();fetchElectricityBills()}}}if(n==="settings")loadRoomInfo()}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function toast(m){var e=document.getElementById("toast");e.textContent=m;e.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(function(){e.classList.remove("show")},1800)}
 function log(m){var e=document.getElementById("syncResult");e.textContent=(e.textContent||"")+" | "+m.slice(0,100)}
@@ -103,7 +104,17 @@ function settleAll(){var u=records.filter(function(r){return!r.settled});if(!u.l
 function undoSettle(){if(!confirm("撤销最近结算？"))return;api("/api/records/undo_settle",{token:syncToken}).then(function(){loadRecords();toast("已撤销")})}
 function renderRecords(){var e=document.getElementById("recordList");if(!e)return;if(!records.length){e.innerHTML='<div style="text-align:center;color:var(--sub);padding:20px">暂无记录</div>';return}var s=records.slice().sort(function(a,b){return b.id-a.id});e.innerHTML=s.map(function(r){var t=r.settled?'<span class="tag tag-ok">已结</span>':'<span class="tag tag-pending">待结</span>';var kh=r.kwh?('<div class="kwh">'+r.kwh.toFixed(1)+' 度</div>'):"";var et="";if(r.elec_type==="空调电费")et=' <span style="font-size:9px;color:#0288d1">空调</span>';else if(r.elec_type==="照明电费")et=' <span style="font-size:9px;color:#f57c00">照明</span>';var sc=r.source==="campus_card"?' <span style="font-size:9px;color:#999">[卡]</span>':"";return '<div class="record-item"><div class="record-avatar">'+esc((r.payer_name||"?")[0])+'</div><div class="record-info"><div class="payer">'+esc(r.payer_name||"?")+" "+t+et+sc+'</div><div class="meta">'+esc(r.date||"")+'</div></div><div class="record-amount"><div class="money">¥'+Number(r.amount||0).toFixed(2)+"</div>"+kh+'</div><button class="btn btn-danger btn-sm" onclick="deleteRecord('+r.id+')" style="padding:2px 8px;font-size:11px">删</button></div>'}).join("");var b=document.getElementById("settleBox");if(b){var u=records.filter(function(r){return!r.settled});b.textContent=u.length?"（"+u.length+"条待结算）":""};renderSuggestion()}
 function renderSuggestion(){var e=document.getElementById("settlementSuggestion"),c=document.getElementById("settlementContent");if(!e||!c)return;var u=records.filter(function(r){return!r.settled});if(!u.length){e.style.display="none";return}var n=roomMembers.map(function(m){return m.name});if(!n.length){var ns={};records.forEach(function(r){if(r.payer_name)ns[r.payer_name]=true});n=Object.keys(ns)}if(!n.length)n=["室友A","室友B","室友C","室友D"];var nm=n.length,t={};n.forEach(function(x){t[x]=0});u.forEach(function(r){t[r.payer_name]=(t[r.payer_name]||0)+r.amount});var ta=u.reduce(function(s,r){return s+r.amount},0),pp=ta/nm;var h="";n.forEach(function(x){var p=t[x]||0,d=p-pp,i=d>0.1?"多付":d<-0.1?"少付":"持平";h+='<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:13px"><span>'+esc(x)+'</span><span>充 ¥'+p.toFixed(2)+" | 应 ¥"+pp.toFixed(2)+" | "+i+" ¥"+Math.abs(d).toFixed(2)+"</span></div>"});var de=[],cr=[];n.forEach(function(x){var d=(t[x]||0)-pp;if(d>0.1)cr.push({name:x,amount:d});else if(d<-0.1)de.push({name:x,amount:-d})});if(de.length&&cr.length){h+='<div style="margin-top:4px;font-size:12px;color:var(--danger)">建议转账：</div>';var di=0,ci=0;while(di<de.length&&ci<cr.length){var pay=Math.min(de[di].amount,cr[ci].amount);h+='<div style="font-size:12px;padding:1px 0">'+esc(de[di].name)+" -> "+esc(cr[ci].name)+" ¥"+pay.toFixed(2)+"</div>";de[di].amount-=pay;cr[ci].amount-=pay;if(de[di].amount<0.01)di++;if(cr[ci].amount<0.01)ci++}}c.innerHTML=h;e.style.display="block"}
-function renderStats(){document.getElementById("statKwh").textContent=lastKwh!=null?lastKwh.toFixed(1):"--";var u=records.filter(function(r){return!r.settled}),n=roomMembers.length||4,t=u.reduce(function(s,r){return s+r.amount},0);document.getElementById("statAvg").textContent="¥"+(t/n).toFixed(2);document.getElementById("statAvgDetail").textContent=u.length+"条待结 / "+n+"人";document.getElementById("roomBadge").textContent=lastRoomInfo||"";document.getElementById("userBadge").textContent=myName?" "+myName:"";document.getElementById("syncDot").className="sync-dot "+(syncToken?"online":"offline")}
+function renderStats(acKwh,ltKwh){
+document.getElementById("statAc").textContent=acKwh!=null?acKwh.toFixed(2):"--";
+document.getElementById("statLight").textContent=ltKwh!=null?ltKwh.toFixed(2):"--";
+var u=records.filter(function(r){return!r.settled}),n=roomMembers.length||4,t=u.reduce(function(s,r){return s+r.amount},0);
+document.getElementById("statAvg").textContent="¥"+(t/n).toFixed(2);
+document.getElementById("statAvgDetail").textContent=u.length+"条待结/ "+n+"人";
+document.getElementById("roomBadge").textContent=lastRoomInfo||"";
+document.getElementById("userBadge").textContent=myName?" "+myName:"";
+document.getElementById("syncDot").className="sync-dot "+(syncToken?"online":"offline")
+}
+
 function renderAll(){renderPayerChips();renderRecords();renderStats()}
 
 // ==== Sync / Login ====
@@ -130,8 +141,9 @@ document.getElementById("btnBillDebug").disabled=false;
 r.textContent="OK "+myStudentId+" 查找房间...";
 fetch(b+"/api/room/my",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:syncToken})})
 .then(function(x2){return x2.json()}).then(function(rm){
-if(rm.has_room){onRoomJoined(rm.room_id,rm.members,rm.building_name+" "+rm.room_name)}
-else{r.textContent="OK 登录成功，请选择房间加入";document.getElementById("roomSelectCard").style.display="";document.getElementById("roomQuickCard").style.display="none";loadCampuses()}
+if(rm.has_room){roomCampus=rm.campus||"";onRoomJoined(rm.room_id,rm.members,rm.building_name+" "+rm.room_name)}
+else{r.textContent="OK 登录成功，请选择房间加入";document.getElementById("roomSelectCard").style.display="";document.getElementById("roomQuickCard").style.display="none";
+document.getElementById("lightingRoomCard").style.display="none";loadCampuses()}
 }).catch(function(e){r.textContent="OK 登录成功，请选择房间加入";document.getElementById("roomSelectCard").style.display="";loadCampuses()});
 }).catch(function(e){r.textContent="Failed to fetch: "+e.message})}
 
@@ -153,6 +165,9 @@ lastRoomInfo=buildingRoom;
 // Show quick card, hide select card
 document.getElementById("roomSelectCard").style.display="none";
 document.getElementById("roomQuickCard").style.display="";
+document.getElementById("lightingRoomCard").style.display="";
+// Load lighting building options
+loadBuildingsLight();
 document.getElementById("quickRoomInfo").textContent="🏠 "+buildingRoom+" | "+roomMembers.length+"人 | "+roomMembers.map(function(m){return m.name}).join("、");
 document.getElementById("btnFetchBills").disabled=false;
 document.getElementById("syncResult").textContent="OK "+myName+" 已加入 "+buildingRoom;
@@ -167,20 +182,75 @@ roomId=null;roomMembers=[];
 document.getElementById("syncDot").className="sync-dot offline";
 document.getElementById("roomSelectCard").style.display="";
 document.getElementById("roomQuickCard").style.display="none";
+document.getElementById("lightingRoomCard").style.display="none";
 document.getElementById("btnFetchBills").disabled=true;
 document.getElementById("syncResult").textContent="已退出，请重新登录";
 renderAll();
 setTimeout(tryAutoLogin, 500);
 }
 
+// ==== Lighting Room ====
+function loadBuildingsLight(){
+  var cs=document.getElementById("lightCampus"),bs=document.getElementById("lightBuilding");
+  var mcv=roomCampus||document.getElementById("syncCampus").value;
+  if(!syncToken||!mcv){cs.innerHTML="<option>先登录</option>";bs.innerHTML="<option>先登录</option>";return}
+  // Parse campus code&name
+  var parts=mcv.split("&"),cid=parts[0]||mcv,cname=parts[1]||cid;
+  cs.innerHTML='<option value="'+esc(cid)+'">'+esc(cname)+"</option>";
+  bs.innerHTML="<option>加载中...</option>";
+  api("/api/feeitem/select",{token:syncToken,feeitemid:"488",level:"1",campus:cid}).then(function(j){
+    if(j.error||!j.options){bs.innerHTML="<option>"+(j.error||"无数据")+"</option>";return}
+    var filtered=j.options.filter(function(o){return o.name.indexOf("照明")>=0});
+    if(!filtered.length){bs.innerHTML="<option>未找到照明楼栋</option>";return}
+    bs.innerHTML='<option value="">选择照明楼栋</option>'+filtered.map(function(o){return '<option value="'+esc(o.id)+'">'+esc(o.name)+"</option>"}).join("")
+  }).catch(function(){bs.innerHTML="<option>加载失败</option>"})
+}
+function loadFloorsLight(){
+  var b=document.getElementById("lightBuilding").value,s=document.getElementById("lightFloor");
+  if(!b)return;s.innerHTML="<option>加载中...</option>";
+  var cv=roomCampus||document.getElementById("syncCampus").value;
+  api("/api/feeitem/select",{token:syncToken,feeitemid:"488",level:"2",campus:cv.split("&")[0],building:b}).then(function(j){
+    if(j.error){s.innerHTML="<option>"+j.error+"</option>";return}
+    s.innerHTML='<option value="">选择楼层</option>'+j.options.map(function(o){return '<option value="'+esc(o.id)+'">'+esc(o.name)+"</option>"}).join("");
+    document.getElementById("lightRoom").innerHTML="<option>先选楼层</option>"
+  })
+}
+function loadRoomsLight(){
+  var c=(roomCampus||document.getElementById("syncCampus").value).split("&")[0],b=document.getElementById("lightBuilding").value,f=document.getElementById("lightFloor").value,s=document.getElementById("lightRoom");
+  if(!f)return;s.innerHTML="<option>加载中...</option>";
+  api("/api/feeitem/select",{token:syncToken,feeitemid:"488",level:"3",campus:c,building:b,floor:f}).then(function(j){
+    if(j.error){s.innerHTML="<option>"+j.error+"</option>";return}
+    if(!j.options||!j.options.length){s.innerHTML="<option>无房间</option>";return}
+    s.innerHTML='<option value="">选择房间</option>'+j.options.map(function(o){return '<option value="'+esc(o.id)+'">'+esc(o.name)+"</option>"}).join("");
+    document.getElementById("btnSaveLighting").disabled=false
+  })
+}
+function onLightRoomSelected(){
+  document.getElementById("btnSaveLighting").disabled=!document.getElementById("lightRoom").value
+}
+function saveLightingRoom(){
+  var b=document.getElementById("lightBuilding").value,f=document.getElementById("lightFloor").value,r=document.getElementById("lightRoom").value;
+  var st=document.getElementById("lightRoomStatus");
+  if(!b||!f||!r){st.textContent="请完整选择";return}
+  st.textContent="保存中...";
+  api("/api/room/lighting",{token:syncToken,building:b,floor:f,room:r}).then(function(j){
+    if(j.error){st.textContent="ERROR: "+j.error;return}
+    st.textContent="✔ 照明房间已保存";
+    autoQueryElec()
+  }).catch(function(e){st.textContent="ERROR: "+e.message})
+}
+
 function autoQueryElec(){
 var r=document.getElementById("syncResult");r.textContent="查询中...";
 api("/api/electricity/auto",{token:syncToken}).then(function(j){
 if(j.error){r.textContent="ERROR: "+j.error;return}
-var k=j.remaining_kwh,ks=k!=null?k.toFixed(2)+" 度":"未知";
-r.textContent=lastRoomInfo+" | 剩余: "+ks;
-if(k!=null&&lastKwh!=null&&k>lastKwh+0.5){var a=k-lastKwh;r.textContent+=" | 检测到充值 +"+a.toFixed(1)+" 度"}
-lastKwh=k;localStorage.setItem("ac_last_kwh",k);renderStats();
+var ac=j.ac||{},lt=j.lighting||{},ak=ac.kwh,lk=lt.kwh;
+var aks=ak!=null?ak.toFixed(2):"--",lks=lk!=null?lk.toFixed(2):"--";
+r.textContent=lastRoomInfo+" | 空调:"+aks+" 照明:"+lks;
+lastKwh=ak;localStorage.setItem("ac_last_kwh",ak);
+renderStats(ak,lk);
+var note=j.note||"";
+if(note)document.getElementById("lightRoomStatus").textContent=note;
 }).catch(function(e){r.textContent="ERROR: "+e.message})
 }
 
