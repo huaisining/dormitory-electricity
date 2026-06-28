@@ -1,17 +1,17 @@
-import os, re, json, hashlib, time, sqlite3
+import os, json, hashlib, time, sqlite3
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests, urllib3
 urllib3.disable_warnings()
-from des_ahu import DES
+import sys, os as _os
+_shared = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..")
+if _shared not in sys.path: sys.path.insert(0, _shared)
+from shared.des_ahu import DES
 
 app = Flask(__name__)
 CORS(app)
 SESSIONS = {}
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.0.0 Safari/537.36"
-CAS_BASE = "https://one.ahu.edu.cn/cas"
-YCARD_BASE = "https://ycard.ahu.edu.cn"
-Y_ENTRY = YCARD_BASE + "/berserker-auth/cas/login/neusoftCas?targetUrl=https://ycard.ahu.edu.cn/berserker-base/redirect?appId=16&type=app"
+from shared.auth import UA, CAS_BASE, YCARD_BASE, Y_ENTRY, ycall, parse_kwh
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dorm.db")
 
 # ====== Database ======
@@ -71,70 +71,15 @@ init_db()
 
 # ====== Auth ======
 def full_login(username, password):
-    s = requests.Session()
-    s.verify = False
-    s.headers["User-Agent"] = UA
-    chain = []
-
-    r = s.get(Y_ENTRY, allow_redirects=False, timeout=15)
-    cas_url = r.headers.get("Location", "")
-    if not cas_url:
-        return {"error": "no redirect from ycard entry", "chain": chain}
-    chain.append("1:302->cas")
-
-    r = s.get(cas_url, timeout=15)
-    lt_m = re.search(r'name="lt"\s+value="([^"]+)"', r.text)
-    ex_m = re.search(r'name="execution"\s+value="([^"]+)"', r.text)
-    if not lt_m or not ex_m:
-        return {"error": "no lt/exec", "chain": chain}
-    lt, execution = lt_m.group(1), ex_m.group(1)
-    chain.append("2:got_lt_exec")
-
-    enc = DES.str_enc(username + password + lt, "1", "2", "3")
-    s.post(CAS_BASE + "/device",
-        data={"ul": str(len(username)), "pl": str(len(password)), "rsa": enc, "method": "login"},
-        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"})
-    chain.append("3:device_ok")
-
-    r = s.post(cas_url,
-        data={"rsa": enc, "ul": str(len(username)), "pl": str(len(password)), "lt": lt, "execution": execution, "_eventId": "submit"},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        allow_redirects=False, timeout=30)
-    chain.append(f"5:POST={r.status_code}")
-
-    next_url = r.headers.get("Location", "")
-    for i in range(10):
-        if not next_url:
-            break
-        r = s.get(next_url, allow_redirects=False, timeout=15)
-        jwt_m = re.search(r"synjones-auth=([^&\"\s]+)", r.url)
-        if not jwt_m:
-            jwt_m = re.search(r"synjones-auth=([^&\"\s]+)", r.text[:5000])
-        if jwt_m:
-            return {"success": True, "jwt": jwt_m.group(1), "chain": chain, "student_id": username}
-        next_url = r.headers.get("Location", "")
-
-    jwt_m = re.search(r"synjones-auth=([^&\"\s]+)", r.url) if r else None
-    if jwt_m:
-        return {"success": True, "jwt": jwt_m.group(1), "student_id": username}
-    return {"error": "no JWT", "chain": chain}
-
+    # ponytail: delegates raw CAS auth to shared.auth, appends session fields here
+    from shared.auth import raw_login
+    result = raw_login(username, password)
+    if "jwt" in result:
+        result["student_id"] = username
+    return result
 def api_call(jwt, form_data):
-    h = {"User-Agent": UA, "synjones-auth": f"bearer {jwt}",
-         "Accept": "application/json, text/plain, */*", "Origin": YCARD_BASE,
-         "Referer": f"{YCARD_BASE}/charge-app/"}
-    try:
-        r = requests.post(f"{YCARD_BASE}/charge/feeitem/getThirdData", data=form_data, headers=h, verify=False, timeout=15)
-        return r.json() if r.status_code == 200 else {"_err": f"HTTP {r.status_code}"}
-    except Exception as e:
-        return {"_err": str(e)}
-
-def parse_kwh(s):
-    if not s: return None
-    m = re.search(r"(\d+\.?\d*)\s*度", s)
-    if m: return float(m.group(1))
-    m = re.search(r"(\d+\.?\d*)", s)
-    return float(m.group(1)) if m else None
+    # ponytail: thin wrapper, shared.auth.ycall does the real work
+    return ycall(jwt, form_data)
 
 def get_room_id(token):
     """Get room_id from session, or None if not joined yet."""
@@ -366,7 +311,7 @@ def api_select():
     if d.get("building"): form["building"] = d["building"]
     if d.get("floor"): form["floor"] = d["floor"]
     result = api_call(jwt, form)
-    if "_err" in result: return jsonify({"error": str(result)}), 500
+    if "_err" in result: return jsonify({"error": "elec API failed", "detail": result.get("_err",""), "raw": str(result)[:500], "sent_form": {"feeitemid":feeitemid,"building":building_full,"floor":floor_full,"room":room_full,"campus":room.get("campus","")}}), 500
 
     # Check API-level response code (Ahu_Plus does this)
     api_code = result.get("code", 200)
@@ -417,7 +362,7 @@ def api_elec_auto():
     if room["campus"]: form["campus"] = room["campus"]
 
     result = api_call(jwt, form)
-    if "_err" in result: return jsonify({"error": str(result)}), 500
+    if "_err" in result: return jsonify({"error": "elec API failed", "detail": result.get("_err",""), "raw": str(result)[:500], "sent_form": {"feeitemid":feeitemid,"building":building_full,"floor":floor_full,"room":room_full,"campus":room.get("campus","")}}), 500
 
     mp = result.get("map") or {}
     sd = mp.get("showData") or {}
@@ -456,7 +401,7 @@ def api_elec():
     if campus: form["campus"] = campus
 
     result = api_call(jwt, form)
-    if "_err" in result: return jsonify({"error": str(result)}), 500
+    if "_err" in result: return jsonify({"error": "elec API failed", "detail": result.get("_err",""), "sent_form": {"feeitemid":feeitemid,"building":building,"floor":floor,"room":room,"campus":campus}}), 500
 
     mp = result.get("map") or {}
     sd = mp.get("showData") or {}
@@ -584,7 +529,7 @@ def api_bills_debug():
                 "locationName": rec.get("locationName", ""),
                 "consumeTypeName": rec.get("consumeTypeName", ""),
             })
-        return jsonify({"http_code": r.status_code if hasattr(r, 'status_code') else "N/A",
+        return jsonify({"http_code": r.status_code if True else "N/A",
             "total_scanned": len(records), "sample_size": len(sample), "samples": sample})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -607,6 +552,7 @@ def extract_electricity_bill(rec):
 
     search_text = " ".join([resume, turnover, consume_type, location, merchant, pay_name])
 
+
     exclude_kw = ["充值", "退款", "退费", "转入", "入账"]
     if any(kw in search_text for kw in exclude_kw):
         return None
@@ -617,7 +563,7 @@ def extract_electricity_bill(rec):
 
     if not (is_elec or is_ac or is_light):
         if isinstance(tran_amt, (int, float)) and tran_amt < 0:
-            if any(kw in search_text for kw in ["缴费", "水电", "能耗"]):
+            if any(kw in search_text for kw in ["缴费", "水电", "能源"]):
                 is_elec = True
         if not (is_elec or is_ac or is_light):
             return None
@@ -655,9 +601,6 @@ def serve_index():
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
-    if os.path.exists(idx_path):
-        return flask.send_file(idx_path)
-    return jsonify({"error": "index.html not found"}), 404
 
 @app.route("/manifest.json")
 def serve_manifest():

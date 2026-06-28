@@ -7,10 +7,7 @@ urllib3.disable_warnings()
 app = Flask(__name__, static_folder="..")
 CORS(app)
 
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148.0.0.0 Safari/537.36"
-CAS_BASE = "https://one.ahu.edu.cn/cas"
-YCARD_BASE = "https://ycard.ahu.edu.cn"
-Y_ENTRY = YCARD_BASE + "/berserker-auth/cas/login/neusoftCas?targetUrl=https://ycard.ahu.edu.cn/berserker-base/redirect?appId=16&type=app"
+from shared.auth import UA, CAS_BASE, YCARD_BASE, Y_ENTRY, ycall, parse_kwh
 
 KV_URL = os.environ.get("KV_REST_API_URL", "")
 KV_TOKEN = os.environ.get("KV_REST_API_TOKEN", "")
@@ -39,55 +36,18 @@ def save(k, v):
     MEM[k] = v
     kv_set(k, v)
 
-try:
-    from des_ahu import DES
-except:
-    class DES:
-        @staticmethod
-        def str_enc(a,b,c,d): return ""
-    import warnings; warnings.warn("no DES")
+import sys, os as _os
+_shared = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..")
+if _shared not in sys.path: sys.path.insert(0, _shared)
+from shared.des_ahu import DES
 
 def full_login(user, pwd):
-    s = requests.Session(); s.verify = False; s.headers["User-Agent"] = UA; ch = []
-    try:
-        r = s.get(Y_ENTRY, allow_redirects=False, timeout=15)
-        cu = r.headers.get("Location", ""); ch.append("1")
-        r = s.get(cu, timeout=15)
-        lt_m = re.search(r'name="lt"\s+value="([^"]+)"', r.text)
-        ex_m = re.search(r'name="execution"\s+value="([^"]+)"', r.text)
-        if not lt_m or not ex_m: return {"error": "no lt/exec", "chain": ch}
-        lt, ex = lt_m.group(1), ex_m.group(1); ch.append("2")
-        enc = DES.str_enc(user + pwd + lt, "1", "2", "3")
-        s.post(CAS_BASE + "/device", data={"ul": str(len(user)), "pl": str(len(pwd)), "rsa": enc, "method": "login"}, headers={"X-Requested-With": "XMLHttpRequest"})
-        ch.append("3")
-        r = s.post(cu, data={"rsa": enc, "ul": str(len(user)), "pl": str(len(pwd)), "lt": lt, "execution": ex, "_eventId": "submit"}, headers={"Content-Type": "application/x-www-form-urlencoded"}, allow_redirects=False, timeout=30)
-        ch.append(f"4:{r.status_code}")
-        nu = r.headers.get("Location", "")
-        for i in range(10):
-            if not nu: break
-            r = s.get(nu, allow_redirects=False, timeout=15)
-            jm = re.search(r"synjones-auth=([^&\"]+)", r.url) or re.search(r"synjones-auth=([^&\"]+)", r.text[:5000])
-            if jm: return {"success": True, "jwt": jm.group(1), "chain": ch}
-            nu = r.headers.get("Location", "")
-        return {"error": "no JWT", "chain": ch}
-    except Exception as e:
-        return {"error": str(e), "chain": ch}
+    # ponytail: delegates to shared.auth
+    from shared.auth import raw_login
+    return raw_login(user, pwd)
 
-def ycall(jwt, form):
-    h = {"User-Agent": UA, "synjones-auth": f"bearer {jwt}", "Accept": "application/json", "Origin": YCARD_BASE, "Referer": f"{YCARD_BASE}/charge-app/"}
-    try:
-        r = requests.post(f"{YCARD_BASE}/charge/feeitem/getThirdData", data=form, headers=h, verify=False, timeout=15)
-        return r.json() if r.status_code == 200 else {"_err": f"HTTP {r.status_code}"}
-    except Exception as e:
-        return {"_err": str(e)}
-
-def pk(s):
-    if not s: return None
-    m = re.search(r"(\d+\.?\d*)\s*度", s)
-    if m: return float(m.group(1))
-    m = re.search(r"(\d+\.?\d*)", s)
-    return float(m.group(1)) if m else None
-
+# ponytail: pk renamed to parse_kwh, imported from shared.auth
+pk = parse_kwh
 # --- Routes ---
 @app.route("/")
 def idx():
@@ -223,7 +183,7 @@ def api_elec_auto():
     bf = room.get("building_code","")
     if room.get("building_name") and "&" not in bf: bf += "&" + room["building_name"]
     ff = room.get("floor","")
-    if "&" not in ff: ff = ff + "&" + ff.replace("&","") + "层" if "&" in ff else ff + "&" + ff + "层"
+    if "&" not in ff: ff = ff + "&" + ff + "层"
     rf = room.get("room_code","")
     if room.get("room_name") and "&" not in rf: rf += "&" + room["room_name"]
     form = {"feeitemid": "488", "type": "IEC", "level": "4", "building": bf, "floor": ff, "room": rf}

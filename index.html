@@ -63,6 +63,7 @@ input:focus,select:focus{border-color:var(--primary);outline:none}
 <nav><button class="active" onclick="switchPage('records',this)">记录</button><button onclick="switchPage('sync',this)">同步</button><button onclick="switchPage('settings',this)">设置</button></nav>
 <div class="page active" id="page-records">
 <div class="stats"><div class="stat-card"><div class="label">剩余电量</div><div class="value" id="statKwh">--</div><div class="sub">度</div></div><div class="stat-card"><div class="label">人均待结算</div><div class="value" id="statAvg">--</div><div class="sub" id="statAvgDetail"></div></div></div>
+<div class="card" id="elecBillCard" style="display:none"><h3>电费流水 <span id="elecBillCount" style="font-size:12px;color:var(--sub);font-weight:400"></span></h3><div id="elecBillList" style="max-height:300px;overflow-y:auto"></div></div>
 <div class="card"><h3>添加充值记录</h3><div class="form-row"><input type="date" id="dateInput"><input type="number" id="amountInput" placeholder="金额(元)" step="0.01" min="0"></div><div id="payerChips" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:2px"></div><button class="btn btn-primary btn-block" onclick="addRecord()">添加记录</button></div>
 <div class="card"><h3>充值记录 <span id="settleBox" style="font-size:12px;color:var(--sub)"></span></h3><div id="recordList"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-outline" style="flex:1" onclick="settleAll()">结算全部</button><button class="btn btn-outline" style="flex:1" onclick="undoSettle()">撤销结算</button></div></div>
 <div class="card" id="settlementSuggestion" style="display:none"><h3>结算建议</h3><div id="settlementContent"></div></div>
@@ -86,8 +87,8 @@ var syncToken="",syncBackend=window.location.origin||localStorage.getItem("ac_ba
 var records=[],roomId=null,roomMembers=[],myStudentId="",myName="",selectedPayer="";
 var pricePerKwh=parseFloat(localStorage.getItem("ac_price")||"0.56");
 var lastKwh=null,lastRoomInfo="";
-function api(u,d){return fetch(syncBackend+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})}).then(function(r){return r.json()})}
-function switchPage(n,b){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("active")});document.getElementById("page-"+n).classList.add("active");if(b)b.classList.add("active");if(n==="records")loadRecords();if(n==="settings")loadRoomInfo()}
+function api(u,d){return fetch(syncBackend+u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d||{})}).then(function(r){var ct=r.headers.get("content-type")||"";if(ct.indexOf("json")===-1)throw new Error("Server error: "+r.status);return r.json()})}
+function switchPage(n,b){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("active")});document.getElementById("page-"+n).classList.add("active");if(b)b.classList.add("active");if(n==="records"){loadRecords();if(syncToken&&roomId){autoQueryElec();fetchElectricityBills()}}if(n==="settings")loadRoomInfo()}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function toast(m){var e=document.getElementById("toast");e.textContent=m;e.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(function(){e.classList.remove("show")},1800)}
 function log(m){var e=document.getElementById("syncResult");e.textContent=(e.textContent||"")+" | "+m.slice(0,100)}
@@ -155,7 +156,7 @@ document.getElementById("roomQuickCard").style.display="";
 document.getElementById("quickRoomInfo").textContent="🏠 "+buildingRoom+" | "+roomMembers.length+"人 | "+roomMembers.map(function(m){return m.name}).join("、");
 document.getElementById("btnFetchBills").disabled=false;
 document.getElementById("syncResult").textContent="OK "+myName+" 已加入 "+buildingRoom;
-loadRecords();loadRoomInfo();renderAll();
+loadRecords();loadRoomInfo();renderAll();autoQueryElec();fetchElectricityBills();setTimeout(function(){switchPage("records")},300);
 setTimeout(tryAutoLogin, 500);
 }
 
@@ -206,7 +207,15 @@ r.textContent="找到 "+bills.length+" 条电费，"+(nb.length+" 新/"+(db.leng
 if(!bills.length){l.innerHTML="<p>未找到</p>";return}
 var h="";if(nb.length){h+='<button class="btn btn-primary btn-block" onclick="importAllBills()" style="margin:8px 0">一键导入全部 '+nb.length+' 条</button>';h+='<div style="max-height:300px;overflow-y:auto">';nb.forEach(function(b,i){h+=billRow(b,i,true)});h+="</div>"}
 if(db.length){h+='<div style="font-size:12px;color:var(--sub);margin-top:8px">已有 '+db.length+' 条（已跳过）</div>'}
-l.innerHTML=h}).catch(function(e){document.getElementById("btnFetchBills").disabled=false;r.textContent="ERROR: "+e.message})}
+l.innerHTML=h;
+  var ec=document.getElementById("elecBillCard"),el=document.getElementById("elecBillList"),en=document.getElementById("elecBillCount");
+  if(ec)ec.style.display=bills.length?"":"none";
+  if(en)en.textContent=bills.length?"("+bills.length+"条)":"";
+  if(el){
+    var eh="<div style=\"font-size:12px;color:var(--sub);margin-bottom:6px\">近30天电费流水，自动同步</div>";
+    bills.slice(0,30).forEach(function(b,i){eh+=billRow(b,i,false)});
+    el.innerHTML=eh
+  }}).catch(function(e){document.getElementById("btnFetchBills").disabled=false;r.textContent="ERROR: "+e.message})}
 function billRow(b,i,n){var a=b.amount.toFixed(2),t=b.type==="照明电费"?"照明":b.type==="空调电费"?"空调":"电费",d=(b.date||"").slice(0,10);return '<div class="record-item"><div class="record-info"><div>'+t+" ¥"+esc(a)+'</div><div class="meta">'+esc(d)+" "+esc(b.merchant||"")+'</div></div>'+(n?'<button class="btn btn-sm btn-outline" onclick="importBill('+i+')">导入</button>':'<span style="font-size:10px;color:#999">已导入</span>')+"</div>"}
 function importBill(i){var b=window._tempBills[i];if(!b)return;var p=prompt("充值人：",myName||"");if(!p)return;var d=(b.date||"").slice(0,10);api("/api/records/add",{token:syncToken,date:d,amount:b.amount,payer:p,kwh:pricePerKwh>0?parseFloat((b.amount/pricePerKwh).toFixed(2)):0,source:"campus_card",elecType:b.type}).then(function(){loadRecords();toast("已导入")})}
 function importAllBills(){var b=window._tempBills;if(!b||!b.length){toast("没有新记录");return}var c=b.length,d=0;b.forEach(function(x){var dt=(x.date||"").slice(0,10);api("/api/records/add",{token:syncToken,date:dt,amount:x.amount,payer:myName||"?",kwh:pricePerKwh>0?parseFloat((x.amount/pricePerKwh).toFixed(2)):0,source:"campus_card",elecType:x.type}).then(function(){d++;if(d>=c){loadRecords();toast("已导入 "+c+" 条")}})});document.getElementById("billList").innerHTML="";document.getElementById("billResult").textContent="导入中..."}
