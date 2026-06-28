@@ -3,6 +3,9 @@
     { "src": "api/index.py", "use": "@vercel/python" }
   ],
   "routes": [
+    { "src": "/manifest.json", "dest": "api/index" },
+    { "src": "/sw.js", "dest": "api/index" },
+    { "src": "/icon-(.*).png", "dest": "api/index" },
     { "src": "/api/(.*)", "dest": "api/index" },
     { "src": "/(.*)", "dest": "api/index" }
   ]

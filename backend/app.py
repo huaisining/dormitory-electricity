@@ -338,17 +338,30 @@ def records_summary():
     year = d.get("year")
     month = d.get("month")
     db = get_db()
+    payer = d.get("payer", "")
     if year is not None and month is not None:
         prefix = f"{int(year):04d}-{int(month):02d}"
-        rows = db.execute(
-            "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? AND date LIKE ? GROUP BY elec_type",
-            (rid, prefix + "%")
-        ).fetchall()
+        if payer:
+            rows = db.execute(
+                "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? AND date LIKE ? AND payer_name=? GROUP BY elec_type",
+                (rid, prefix + "%", payer)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? AND date LIKE ? GROUP BY elec_type",
+                (rid, prefix + "%")
+            ).fetchall()
     else:
-        rows = db.execute(
-            "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? GROUP BY elec_type",
-            (rid,)
-        ).fetchall()
+        if payer:
+            rows = db.execute(
+                "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? AND payer_name=? GROUP BY elec_type",
+                (rid, payer)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? GROUP BY elec_type",
+                (rid,)
+            ).fetchall()
     db.close()
     ac_total = 0.0
     light_total = 0.0
@@ -948,6 +961,10 @@ def serve_manifest():
     if os.path.exists(mp):
         return flask.send_file(mp, mimetype="application/manifest+json")
     return jsonify({}), 404
+
+@app.route("/test.html")
+def serve_test():
+    return flask.send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), "test.html"))
 
 @app.route("/sw.js")
 def serve_sw():

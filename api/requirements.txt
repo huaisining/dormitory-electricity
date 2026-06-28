@@ -1,0 +1,5 @@
+flask==3.1.1
+flask-cors==5.0.1
+requests==2.32.3
+urllib3==2.4.0
+libsql-experimental==1.6.0

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Test</title>
+<style>
+.page{display:none}.page.active{display:block}
+nav button{padding:12px}
+</style></head><body>
+<nav><button onclick="switchPage('a')">A</button><button onclick="switchPage('b')">B</button></nav>
+<div class="page active" id="page-a"><p>Page A works!</p></div>
+<div class="page" id="page-b"><p>Page B works!</p></div>
+<script>
+function switchPage(n){
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});
+  document.getElementById("page-"+n).classList.add("active");
+}
+console.log("Test loaded OK");
+</script>
+</body></html>
