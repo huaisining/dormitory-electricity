@@ -1,37 +1,16 @@
-const CACHE_NAME = 'dorm-elect-v99';
-const ASSETS = [
-  '/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
-];
-
+// Self-destruct: unregister old SW
 self.addEventListener('install', function(e) {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(ASSETS);
-    })
-  );
+  self.skipWaiting();
 });
-
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
-      return Promise.all(keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) { return caches.delete(k); }));
+      return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+    }).then(function() {
+      return self.registration.unregister();
     })
   );
 });
-
 self.addEventListener('fetch', function(e) {
-  if (e.request.url.includes('/api/')) {
-    e.respondWith(fetch(e.request).catch(function() {
-      return new Response(JSON.stringify({error: 'offline'}), {headers: {'Content-Type': 'application/json'}});
-    }));
-    return;
-  }
-  e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      return cached || fetch(e.request);
-    })
-  );
+  e.respondWith(fetch(e.request));
 });

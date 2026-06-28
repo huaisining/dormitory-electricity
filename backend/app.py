@@ -228,10 +228,19 @@ def get_records():
     if rid is None: return jsonify({"error": "not joined room"}), 400
 
     db = get_db()
-    rows = db.execute(
-        "SELECT id, date, amount, payer_student_id, payer_name, kwh, settled, source, elec_type FROM records WHERE room_id=? ORDER BY id DESC",
-        (rid,)
-    ).fetchall()
+    year = d.get("year")
+    month = d.get("month")
+    if year and month:
+        prefix = f"{int(year):04d}-{int(month):02d}"
+        rows = db.execute(
+            "SELECT id, date, amount, payer_student_id, payer_name, kwh, settled, source, elec_type FROM records WHERE room_id=? AND date LIKE ? ORDER BY id DESC",
+            (rid, prefix + "%")
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT id, date, amount, payer_student_id, payer_name, kwh, settled, source, elec_type FROM records WHERE room_id=? ORDER BY id DESC",
+            (rid,)
+        ).fetchall()
     records = [dict(r) for r in rows]
     db.close()
     return jsonify({"success": True, "records": records})
@@ -317,6 +326,55 @@ def undo_settle():
     db.commit()
     db.close()
     return jsonify({"success": True})
+
+@app.route("/api/records/summary", methods=["POST"])
+def records_summary():
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    rid = require_room(token)
+    if rid is None: return jsonify({"error": "not joined room"}), 400
+    import datetime
+    now = datetime.datetime.now()
+    year = d.get("year")
+    month = d.get("month")
+    db = get_db()
+    if year is not None and month is not None:
+        prefix = f"{int(year):04d}-{int(month):02d}"
+        rows = db.execute(
+            "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? AND date LIKE ? GROUP BY elec_type",
+            (rid, prefix + "%")
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT elec_type, SUM(amount) as total, COUNT(*) as cnt FROM records WHERE room_id=? GROUP BY elec_type",
+            (rid,)
+        ).fetchall()
+    db.close()
+    ac_total = 0.0
+    light_total = 0.0
+    other_total = 0.0
+    count = 0
+    for r in rows:
+        et = r["elec_type"] or ""
+        amt = round(r["total"] or 0, 2)
+        cnt = r["cnt"] or 0
+        count += cnt
+        if et == "空调电费":
+            ac_total = amt
+        elif et == "照明电费":
+            light_total = amt
+        else:
+            other_total += amt
+    grand_total = round(ac_total + light_total + other_total, 2)
+    return jsonify({
+        "success": True,
+        "year": year, "month": month,
+        "ac_total": ac_total,
+        "lighting_total": light_total,
+        "other_total": other_total,
+        "grand_total": grand_total,
+        "count": count
+    })
 
 @app.route("/api/feeitem/select", methods=["POST"])
 def api_select():
@@ -584,6 +642,182 @@ def api_bills_electricity():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+
+@app.route("/api/bills/summary", methods=["POST"])
+def api_bills_summary():
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
+    jwt = SESSIONS[token]["jwt"]
+    import datetime
+    now = datetime.datetime.now()
+    year = int(d.get("year", now.year))
+    month = int(d.get("month", now.month))
+    prefix = f"{year:04d}-{month:02d}"
+    page_size = 50
+    max_pages = 20
+
+    ac_total = 0.0
+    light_total = 0.0
+    count = 0
+    headers = {
+        "User-Agent": UA, "synjones-auth": f"bearer {jwt}",
+        "synAccessSource": "h5", "Accept": "*/*",
+        "Referer": f"{YCARD_BASE}/campus-card/billing/list?appId=16&type=app"
+    }
+
+    try:
+        url = f"{YCARD_BASE}/berserker-search/search/personal/turnover?size={page_size}&current=1&synAccessSource=h5"
+        r = requests.get(url, headers=headers, verify=False, timeout=15)
+        if r.status_code != 200:
+            return jsonify({"error": f"HTTP {r.status_code}"}), 502
+        resp = r.json()
+        data_block = resp.get("data", {})
+        records = data_block.get("records", [])
+        total_pages = min(data_block.get("pages", 1), max_pages)
+
+        def process(recs):
+            nonlocal ac_total, light_total, count
+            for rec in recs:
+                elec = extract_electricity_bill(rec)
+                if not elec: continue
+                d = elec.get("date", "")[:7]
+                if d != prefix: continue
+                et = elec.get("type", "")
+                amt = elec.get("amount", 0)
+                if et == "空调电费":
+                    ac_total += amt
+                elif et == "照明电费":
+                    light_total += amt
+                else:
+                    pass
+                count += 1
+
+        process(records)
+        for page in range(2, total_pages + 1):
+            url = f"{YCARD_BASE}/berserker-search/search/personal/turnover?size={page_size}&current={page}&synAccessSource=h5"
+            r = requests.get(url, headers=headers, verify=False, timeout=15)
+            if r.status_code != 200: break
+            resp = r.json()
+            more = (resp.get("data", {}) or {}).get("records", [])
+            process(more)
+
+        return jsonify({
+            "success": True,
+            "year": year, "month": month,
+            "ac_total": round(ac_total, 2),
+            "lighting_total": round(light_total, 2),
+            "grand_total": round(ac_total + light_total, 2),
+            "count": count
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/bills/import", methods=["POST"])
+def api_bills_import():
+    """Auto-import electricity bills from campus card to records table."""
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
+    jwt = SESSIONS[token]["jwt"]
+    rid = require_room(token)
+    if rid is None: return jsonify({"error": "not joined room"}), 400
+    page_size = 50
+    max_pages = 20
+    headers = {
+        "User-Agent": UA, "synjones-auth": f"bearer {jwt}",
+        "synAccessSource": "h5", "Accept": "*/*",
+        "Referer": f"{YCARD_BASE}/campus-card/billing/list?appId=16&type=app"
+    }
+    imported = 0
+    skipped = 0
+    try:
+        db = get_db()
+        existing = set()
+        for row in db.execute("SELECT date, amount FROM records WHERE room_id=? AND source='campus_card'", (rid,)).fetchall():
+            existing.add((row["date"][:10], round(row["amount"], 2)))
+        
+        total_pages = [1]
+        def do_page(page):
+            nonlocal imported, skipped
+            url = f"{YCARD_BASE}/berserker-search/search/personal/turnover?size={page_size}&current={page}&synAccessSource=h5"
+            r = requests.get(url, headers=headers, verify=False, timeout=15)
+            if r.status_code != 200: return False
+            resp = r.json()
+            data_block = resp.get("data", {}) or {}
+            if page == 1:
+                total_pages[0] = min(data_block.get("pages", 1), max_pages)
+            recs = data_block.get("records", [])
+            for rec in recs:
+                elec = extract_electricity_bill(rec)
+                if not elec: continue
+                dkey = (elec["date"][:10], round(elec["amount"], 2))
+                if dkey in existing: 
+                    skipped += 1
+                    continue
+                pname = SESSIONS[token].get("name", "") or SESSIONS[token]["student_id"]
+                db.execute(
+                    "INSERT INTO records (room_id, date, amount, payer_student_id, payer_name, kwh, source, elec_type) VALUES (?,?,?,?,?,?,?,?)",
+                    (rid, elec["date"][:19], elec["amount"], SESSIONS[token]["student_id"], pname, 0, "campus_card", elec["type"])
+                )
+                existing.add(dkey)
+                imported += 1
+            return True
+
+        if not do_page(1):
+            db.close()
+            return jsonify({"error": "Failed to fetch campus card data"}), 502
+        for page in range(2, total_pages[0] + 1):
+            if not do_page(page): break
+        
+        db.commit()
+        db.close()
+        return jsonify({"success": True, "imported": imported, "skipped": skipped})
+    except Exception as e:
+        try: db.close()
+        except: pass
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/rooms/list", methods=["POST"])
+def rooms_list():
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
+    db = get_db()
+    rows = db.execute(
+        "SELECT r.id, r.room_name, r.building_name, r.campus, (SELECT COUNT(*) FROM members m WHERE m.room_id=r.id) as member_count FROM rooms r ORDER BY r.id DESC"
+    ).fetchall()
+    db.close()
+    return jsonify({"success": True, "rooms": [dict(r) for r in rows]})
+
+@app.route("/api/room/join2", methods=["POST"])
+def join_room_by_id():
+    """Join an existing room by room ID."""
+    d = request.get_json() or {}
+    token = d.get("token", "")
+    if token not in SESSIONS: return jsonify({"error": "session expired"}), 401
+    sid = SESSIONS[token]["student_id"]
+    name = d.get("name", sid)
+    room_id = d.get("room_id")
+    if not room_id: return jsonify({"error": "need room_id"}), 400
+    db = get_db()
+    room = db.execute("SELECT * FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        db.close()
+        return jsonify({"error": "room not found"}), 404
+    try:
+        db.execute("INSERT INTO members (room_id, student_id, name) VALUES (?,?,?)", (room_id, sid, name))
+    except:
+        pass
+    db.commit()
+    SESSIONS[token]["room_id"] = room_id
+    SESSIONS[token]["name"] = name
+    members = [dict(r) for r in db.execute("SELECT student_id, name FROM members WHERE room_id=?", (room_id,)).fetchall()]
+    db.close()
+    return jsonify({"success": True, "room_id": room_id, "room_name": room["room_name"], "members": members})
 
 @app.route("/api/room/lighting", methods=["POST"])
 def room_lighting():
